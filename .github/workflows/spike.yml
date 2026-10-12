@@ -158,8 +158,8 @@ jobs:
           choco install -y winflexbison3
           curl -sfLo glslang.zip https://github.com/KhronosGroup/glslang/releases/download/main-tot/glslang-main-windows-x86_64-release.zip
           7z x -oglslang glslang.zip > /dev/null
-          # PATH entries must be Windows paths: later steps run in PowerShell.
-          cygpath -w "$(dirname "$(find "$PWD/glslang" -name glslangValidator.exe | head -1)")" >> "$GITHUB_PATH"
+          # Current glslang releases ship glslang.exe only (formerly glslangValidator); passed to Meson explicitly.
+          echo "GLSLANG_EXE=$(cygpath -m "$PWD/glslang/bin/glslang.exe")" >> "$GITHUB_ENV"
       - uses: ilammy/msvc-dev-cmd@v1
         if: runner.os == 'Windows'
       - name: LLVM (Windows, official prebuilt)
@@ -171,7 +171,7 @@ jobs:
           curl -fsSL --max-time 600 "https://github.com/llvm/llvm-project/releases/download/llvmorg-$LLVM_VERSION/$name.tar.xz" -o llvm.tar.xz
           /usr/bin/tar -xJf llvm.tar.xz "$name/lib" "$name/include" "$name/bin/llvm-config.exe"
           mv "$name" llvm
-          cygpath -w "$PWD/llvm/bin" >> "$GITHUB_PATH"
+          echo "LLVM_CONFIG_EXE=$(cygpath -m "$PWD/llvm/bin/llvm-config.exe")" >> "$GITHUB_ENV"
           flags=$(llvm/bin/llvm-config.exe --cxxflags); echo "llvm-config --cxxflags: $flags"
           # Mesa must use the same C runtime as these libraries.
           if echo "$flags" | grep -qE '[-/]MTd?\b'; then echo "MESA_VSCRT=mt" >> "$GITHUB_ENV"; else echo "MESA_VSCRT=md" >> "$GITHUB_ENV"; fi
@@ -196,7 +196,9 @@ jobs:
         shell: pwsh
         run: |
           cd "mesa-$env:MESA_VERSION"
-          meson setup build "--prefix=$PWD/../out" --buildtype=minsize -Db_ndebug=true "-Db_vscrt=$env:MESA_VSCRT" --backend=ninja `
+          "[binaries]`nglslangValidator = '$env:GLSLANG_EXE'`nllvm-config = '$env:LLVM_CONFIG_EXE'" | Set-Content tools.ini
+          Get-Content tools.ini
+          meson setup build --native-file tools.ini "--prefix=$PWD/../out" --buildtype=minsize -Db_ndebug=true "-Db_vscrt=$env:MESA_VSCRT" --backend=ninja `
             -Dgallium-drivers=llvmpipe -Dvulkan-drivers=swrast -Dplatforms= -Dglx=disabled -Degl=disabled -Dgles1=disabled -Dgles2=disabled `
             -Dopengl=false -Dllvm=enabled -Dshared-llvm=disabled -Dshader-cache=enabled -Dgbm=disabled -Dvideo-codecs= -Dtools= `
             -Dzstd=disabled -Dspirv-tools=disabled -Dvulkan-layers= -Dmicrosoft-clc=disabled -Dgallium-d3d12-video=disabled
