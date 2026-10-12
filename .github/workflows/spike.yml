@@ -158,7 +158,8 @@ jobs:
           choco install -y winflexbison3
           curl -sfLo glslang.zip https://github.com/KhronosGroup/glslang/releases/download/main-tot/glslang-main-windows-x86_64-release.zip
           7z x -oglslang glslang.zip > /dev/null
-          echo "$PWD/glslang/bin" >> "$GITHUB_PATH"
+          # PATH entries must be Windows paths: later steps run in PowerShell.
+          cygpath -w "$(dirname "$(find "$PWD/glslang" -name glslangValidator.exe | head -1)")" >> "$GITHUB_PATH"
       - uses: ilammy/msvc-dev-cmd@v1
         if: runner.os == 'Windows'
       - name: LLVM (Windows, official prebuilt)
@@ -170,7 +171,7 @@ jobs:
           curl -fsSL --max-time 600 "https://github.com/llvm/llvm-project/releases/download/llvmorg-$LLVM_VERSION/$name.tar.xz" -o llvm.tar.xz
           /usr/bin/tar -xJf llvm.tar.xz "$name/lib" "$name/include" "$name/bin/llvm-config.exe"
           mv "$name" llvm
-          echo "$PWD/llvm/bin" >> "$GITHUB_PATH"
+          cygpath -w "$PWD/llvm/bin" >> "$GITHUB_PATH"
           flags=$(llvm/bin/llvm-config.exe --cxxflags); echo "llvm-config --cxxflags: $flags"
           # Mesa must use the same C runtime as these libraries.
           if echo "$flags" | grep -qE '[-/]MTd?\b'; then echo "MESA_VSCRT=mt" >> "$GITHUB_ENV"; else echo "MESA_VSCRT=md" >> "$GITHUB_ENV"; fi
