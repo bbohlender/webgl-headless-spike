@@ -197,10 +197,11 @@ jobs:
         run: |
           cd "mesa-$env:MESA_VERSION"
           # Mesa's disk shader cache is not implemented on Windows (meson.build); ANGLE's blob cache still applies.
+          # Mesa's Windows code needs its "windows" platform (Win32 Vulkan types); ANGLE's null display never uses its WSI.
           "[binaries]`nglslangValidator = '$env:GLSLANG_EXE'`nllvm-config = '$env:LLVM_CONFIG_EXE'" | Set-Content tools.ini
           Get-Content tools.ini
           meson setup build --native-file tools.ini "--prefix=$PWD/../out" --buildtype=minsize -Db_ndebug=true "-Db_vscrt=$env:MESA_VSCRT" --backend=ninja `
-            -Dgallium-drivers=llvmpipe -Dvulkan-drivers=swrast -Dplatforms= -Dglx=disabled -Degl=disabled -Dgles1=disabled -Dgles2=disabled `
+            -Dgallium-drivers=llvmpipe -Dvulkan-drivers=swrast -Dplatforms=windows -Dglx=disabled -Degl=disabled -Dgles1=disabled -Dgles2=disabled `
             -Dopengl=false -Dllvm=enabled -Dshared-llvm=disabled -Dshader-cache=disabled -Dgbm=disabled -Dvideo-codecs= -Dtools= `
             -Dzstd=disabled -Dspirv-tools=disabled -Dvulkan-layers= -Dxmlconfig=disabled -Dmicrosoft-clc=disabled -Dgallium-d3d12-video=disabled
           if ($LASTEXITCODE) { exit 1 }
