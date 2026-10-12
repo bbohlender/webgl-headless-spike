@@ -1,0 +1,7 @@
+node_modules/
+spike/harness/out/
+spike/harness/addon/webgl.node
+spike/harness/addon/gl_gen.c
+spike/harness/addon/build/
+spike/harness/models/*.plain.glb
+.DS_Store
