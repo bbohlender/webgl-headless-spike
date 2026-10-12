@@ -180,7 +180,7 @@ jobs:
       - name: Configure + build (Unix)
         if: runner.os != 'Windows'
         run: |
-          COMMON="--buildtype=minsize -Db_ndebug=true -Dstrip=true -Dgallium-drivers=llvmpipe -Dvulkan-drivers=swrast -Dglx=disabled -Degl=disabled -Dgles1=disabled -Dgles2=disabled -Dopengl=false -Dllvm=enabled -Dshared-llvm=disabled -Dshader-cache=enabled -Dgbm=disabled -Dvideo-codecs= -Dtools= -Dzstd=disabled -Dspirv-tools=disabled -Dvulkan-layers="
+          COMMON="--buildtype=minsize -Db_ndebug=true -Dstrip=true -Dgallium-drivers=llvmpipe -Dvulkan-drivers=swrast -Dglx=disabled -Degl=disabled -Dgles1=disabled -Dgles2=disabled -Dopengl=false -Dllvm=enabled -Dshared-llvm=disabled -Dshader-cache=enabled -Dgbm=disabled -Dvideo-codecs= -Dtools= -Dzstd=disabled -Dspirv-tools=disabled -Dvulkan-layers= -Dxmlconfig=disabled"
           cd "mesa-$MESA_VERSION"
           if [ "$RUNNER_OS" = macOS ]; then
             BREW=$(brew --prefix)
@@ -202,7 +202,7 @@ jobs:
           meson setup build --native-file tools.ini "--prefix=$PWD/../out" --buildtype=minsize -Db_ndebug=true "-Db_vscrt=$env:MESA_VSCRT" --backend=ninja `
             -Dgallium-drivers=llvmpipe -Dvulkan-drivers=swrast -Dplatforms= -Dglx=disabled -Degl=disabled -Dgles1=disabled -Dgles2=disabled `
             -Dopengl=false -Dllvm=enabled -Dshared-llvm=disabled -Dshader-cache=disabled -Dgbm=disabled -Dvideo-codecs= -Dtools= `
-            -Dzstd=disabled -Dspirv-tools=disabled -Dvulkan-layers= -Dmicrosoft-clc=disabled -Dgallium-d3d12-video=disabled
+            -Dzstd=disabled -Dspirv-tools=disabled -Dvulkan-layers= -Dxmlconfig=disabled -Dmicrosoft-clc=disabled -Dgallium-d3d12-video=disabled
           if ($LASTEXITCODE) { exit 1 }
           ninja -C build install
           if ($LASTEXITCODE) { exit 1 }
