@@ -278,7 +278,9 @@ jobs:
         run: npm ci && node prep-models.mjs && mkdir -p out
       - name: Smoke (renderer string)
         working-directory: spike/harness
-        run: node render.mjs pbr out/smoke.png
+        env:
+          VK_LOADER_DEBUG: error,warn,driver
+        run: cat ../../pkg/lvp_icd.json && node render.mjs pbr out/smoke.png
       - name: Cold/warm benchmark (3+3 runs per scene)
         working-directory: spike/harness
         run: node bench-scenes.mjs 3 | tee out/bench.jsonl
