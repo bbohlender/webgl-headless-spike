@@ -162,19 +162,38 @@ jobs:
           echo "GLSLANG_EXE=$(cygpath -m "$PWD/glslang/bin/glslang.exe")" >> "$GITHUB_ENV"
       - uses: ilammy/msvc-dev-cmd@v1
         if: runner.os == 'Windows'
-      - name: LLVM (Windows, official prebuilt)
+      # Minimal LLVM, same configuration as the macOS product build: one target, no zlib/zstd, size-optimized.
+      # (LLVM's prebuilt Windows libraries need static zlib + zstd that the release does not ship.)
+      - uses: actions/cache@v4
         if: runner.os == 'Windows'
+        id: llvm-cache
+        with:
+          path: llvm
+          key: llvm-min-${{ env.LLVM_VERSION }}-win-x64-md-1
+      - name: LLVM source (Windows)
+        if: runner.os == 'Windows' && steps.llvm-cache.outputs.cache-hit != 'true'
         run: |
-          # LLVM's release ships static libraries, so nothing is compiled here. Extract with Git Bash's
           # GNU tar: Windows' System32 tar.exe (bsdtar 3.8.4) hangs on LLVM's .tar.xz archives.
-          name="clang+llvm-$LLVM_VERSION-x86_64-pc-windows-msvc"
-          curl -fsSL --max-time 600 "https://github.com/llvm/llvm-project/releases/download/llvmorg-$LLVM_VERSION/$name.tar.xz" -o llvm.tar.xz
-          /usr/bin/tar -xJf llvm.tar.xz "$name/lib" "$name/include" "$name/bin/llvm-config.exe"
-          mv "$name" llvm
-          echo "LLVM_CONFIG_EXE=$(cygpath -m "$PWD/llvm/bin/llvm-config.exe")" >> "$GITHUB_ENV"
-          flags=$(llvm/bin/llvm-config.exe --cxxflags); echo "llvm-config --cxxflags: $flags"
-          # Mesa must use the same C runtime as these libraries.
-          if echo "$flags" | grep -qE '[-/]MTd?\b'; then echo "MESA_VSCRT=mt" >> "$GITHUB_ENV"; else echo "MESA_VSCRT=md" >> "$GITHUB_ENV"; fi
+          curl -fsSL --max-time 600 "https://github.com/llvm/llvm-project/releases/download/llvmorg-$LLVM_VERSION/llvm-project-$LLVM_VERSION.src.tar.xz" -o llvm-src.tar.xz
+          src="llvm-project-$LLVM_VERSION.src"
+          /usr/bin/tar -xJf llvm-src.tar.xz "$src/llvm" "$src/cmake" "$src/third-party" "$src/libc" || true  # 3 irrelevant symlinks fail
+          test -f "$src/llvm/CMakeLists.txt" && mv "$src" llvm-src
+      - name: LLVM build (Windows)
+        if: runner.os == 'Windows' && steps.llvm-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          cmake -S llvm-src/llvm -B llvm-build -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel "-DCMAKE_INSTALL_PREFIX=$PWD/llvm" `
+            -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL `
+            -DLLVM_TARGETS_TO_BUILD=X86 -DLLVM_BUILD_TOOLS=OFF -DLLVM_INCLUDE_TESTS=OFF -DLLVM_INCLUDE_EXAMPLES=OFF -DLLVM_INCLUDE_BENCHMARKS=OFF `
+            -DLLVM_INCLUDE_DOCS=OFF -DLLVM_ENABLE_ZLIB=OFF -DLLVM_ENABLE_ZSTD=OFF -DLLVM_ENABLE_LIBXML2=OFF -DLLVM_ENABLE_RTTI=ON
+          if ($LASTEXITCODE) { exit 1 }
+          ninja -C llvm-build install-llvm-libraries install-llvm-headers install-cmake-exports llvm-config
+          if ($LASTEXITCODE) { exit 1 }
+          New-Item -ItemType Directory -Force llvm/bin | Out-Null
+          Copy-Item llvm-build/bin/llvm-config.exe llvm/bin/
+      - name: LLVM for Meson (Windows)
+        if: runner.os == 'Windows'
+        run: echo "LLVM_CONFIG_EXE=$(cygpath -m "$PWD/llvm/bin/llvm-config.exe")" >> "$GITHUB_ENV"
       - name: Fetch Mesa
         run: curl -fsSL --max-time 600 "https://archive.mesa3d.org/mesa-$MESA_VERSION.tar.xz" | /usr/bin/tar xJ
       - name: Configure + build (Unix)
@@ -201,7 +220,7 @@ jobs:
           # Mesa's Windows code needs its "windows" platform (Win32 Vulkan types); ANGLE's null display never uses its WSI.
           "[binaries]`nglslangValidator = '$env:GLSLANG_EXE'`nllvm-config = '$env:LLVM_CONFIG_EXE'" | Set-Content tools.ini
           Get-Content tools.ini
-          meson setup build --native-file tools.ini "--prefix=$PWD/../out" --buildtype=release -Db_ndebug=true "-Db_vscrt=$env:MESA_VSCRT" --backend=ninja `
+          meson setup build --native-file tools.ini "--prefix=$PWD/../out" --buildtype=release -Db_ndebug=true -Db_vscrt=md --backend=ninja `
             -Dgallium-drivers=llvmpipe -Dvulkan-drivers=swrast -Dplatforms=windows -Dglx=disabled -Degl=disabled -Dgles1=disabled -Dgles2=disabled `
             -Dopengl=false -Dllvm=enabled -Dshared-llvm=disabled -Dshader-cache=disabled -Dgbm=disabled -Dvideo-codecs= -Dtools= `
             -Dzstd=disabled -Dspirv-tools=disabled -Dvulkan-layers= -Dxmlconfig=disabled -Dmicrosoft-clc=disabled -Dgallium-d3d12-video=disabled
