@@ -271,10 +271,16 @@ static napi_value w_load(napi_env env, napi_callback_info info) {
   if (egl_lib) return NULL;
   char *dir = arg_string(env, argv[0]);
   char path[4096];
+#ifdef _WIN32
+  // Native separators: the Vulkan loader resolves the manifest's relative library_path against the
+  // manifest's directory, which it finds only by backslashes.
+  for (char *c = dir; *c; c++)
+    if (*c == '/') *c = '\\';
+#endif
   // Use only the bundled lavapipe driver and no layers, whatever Vulkan drivers or implicit
   // layers (overlays, capture tools) the host has installed. Must happen before ANGLE loads.
-  snprintf(path, sizeof path, "%s/lvp_icd.json", dir);
 #ifdef _WIN32
+  snprintf(path, sizeof path, "%s\\lvp_icd.json", dir);
   _putenv_s("VK_DRIVER_FILES", path);
   _putenv_s("VK_ICD_FILENAMES", path);
   _putenv_s("VK_LOADER_LAYERS_DISABLE", "~all~");
@@ -286,6 +292,7 @@ static napi_value w_load(napi_env env, napi_callback_info info) {
   open_lib(path);  // preload so libEGL's lookup succeeds regardless of the DLL search path
   snprintf(path, sizeof path, "%s\\" LIB_EGL, dir);
 #else
+  snprintf(path, sizeof path, "%s/lvp_icd.json", dir);
   setenv("VK_DRIVER_FILES", path, 1);
   setenv("VK_ICD_FILENAMES", path, 1);
   setenv("VK_LOADER_LAYERS_DISABLE", "~all~", 1);
