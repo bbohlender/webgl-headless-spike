@@ -107,7 +107,7 @@ jobs:
           [ "$sdk" = "10.0.28000.0" ] || sed -i 's/NTDDI_VERSION=NTDDI_WIN11_BR/NTDDI_VERSION=NTDDI_WIN11_GE/' build/config/win/BUILD.gn
       - name: Patch (skip window-system sources with the null display)
         working-directory: angle
-        run: git apply ../spike/patches/angle-null-display-mac-sources.patch
+        run: python3 ../spike/ci/patch_angle.py
       - name: GN args
         working-directory: angle
         run: mkdir -p out/vk && python3 ../spike/ci/angle_args.py ${{ matrix.id }} ${{ matrix.cpu }} | tr ' ' '\n' > out/vk/args.gn && cat out/vk/args.gn
