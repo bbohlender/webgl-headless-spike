@@ -572,7 +572,10 @@ for (const name of Object.keys(native)) {
   const method = RENAMES[name] ?? name[2].toLowerCase() + name.slice(3);
   if (Object.prototype.hasOwnProperty.call(WebGL2RenderingContext.prototype, method)) continue;
   const fn = native[name];
+  // WebGL: a null uniform location makes uniform*() a no-op (location 0 is a real uniform).
+  const takesLocation = /^uniform[1-4](f|i|ui)$/.test(method);
   WebGL2RenderingContext.prototype[method] = function (...args) {
+    if (takesLocation && args[0] == null) return;
     for (let i = 0; i < args.length; i++) {
       const a = args[i];
       if (a !== null && typeof a === "object" && "_id" in a) args[i] = a._id;

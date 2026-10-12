@@ -213,3 +213,10 @@ def frames(scene: str = "tokyo", count: int = 6):
            f"{env} node render.mjs {scene} --backend {backend} --frames {count}")
     sh(f"cd /root/harness && {scene_env('gles', '/root/cache-gles')} node --import ./debug-gl.mjs render.mjs {scene} "
        "--backend gles 2>&1 | grep -E 'GL error|coldMs' | head -20 || true")
+
+
+@app.function(**SMALL)
+def harness_cmd(cmd: str):
+    """Runs a shell command inside the prepared harness (/root/harness) on a 2-vCPU container."""
+    setup_harness()
+    sh(f"cd /root/harness && {cmd} || true")

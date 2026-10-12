@@ -103,11 +103,11 @@ jobs:
           sdk=$(ls "/c/Program Files (x86)/Windows Kits/10/Include" | grep '^10\.' | sort -V | tail -1)
           echo "Using Windows SDK $sdk"
           sed -i "s/^SDK_VERSION = '.*'/SDK_VERSION = '$sdk'/" build/vs_toolchain.py build/toolchain/win/setup_toolchain.py
-          grep -n "^SDK_VERSION" build/vs_toolchain.py build/toolchain/win/setup_toolchain.py
-      - name: Patch (macOS Vulkan-only frameworks)
-        if: runner.os == 'macOS'
+          # NTDDI_WIN11_BR only exists in SDK 28000; older SDKs know NTDDI_WIN11_GE as their newest.
+          [ "$sdk" = "10.0.28000.0" ] || sed -i 's/NTDDI_VERSION=NTDDI_WIN11_BR/NTDDI_VERSION=NTDDI_WIN11_GE/' build/config/win/BUILD.gn
+      - name: Patch (skip window-system sources with the null display)
         working-directory: angle
-        run: git apply ../spike/patches/angle-vulkan-mac-frameworks.patch
+        run: git apply ../spike/patches/angle-null-display-mac-sources.patch
       - name: GN args
         working-directory: angle
         run: mkdir -p out/vk && python3 ../spike/ci/angle_args.py ${{ matrix.id }} ${{ matrix.cpu }} | tr ' ' '\n' > out/vk/args.gn && cat out/vk/args.gn
@@ -125,7 +125,7 @@ jobs:
       - name: Collect
         run: |
           mkdir -p ../pkg && cd out/vk
-          for f in libEGL.dylib libGLESv2.dylib libEGL.so libGLESv2.so libEGL.dll libGLESv2.dll vulkan-1.dll libvulkan.so.1; do [ -f "$f" ] && cp "$f" ../../../pkg/ || true; done
+          for f in libEGL.dylib libGLESv2.dylib libEGL.so libGLESv2.so libEGL.dll libGLESv2.dll; do [ -f "$f" ] && cp "$f" ../../../pkg/ || true; done
           ls -la ../../../pkg
         working-directory: angle
       - uses: actions/upload-artifact@v4
@@ -189,7 +189,7 @@ jobs:
             BREW=$(brew --prefix)
             export PATH="$BREW/opt/bison/bin:$PATH" MACOSX_DEPLOYMENT_TARGET=12.0
             printf "[binaries]\nllvm-config = '$BREW/opt/llvm/bin/llvm-config'\n" > llvm.ini
-            meson setup build --native-file llvm.ini --prefix="$PWD/../out" $COMMON -Dplatforms=macos -Dc_link_args=-L$BREW/lib -Dcpp_link_args=-L$BREW/lib
+            meson setup build --native-file llvm.ini --prefix="$PWD/../out" $COMMON -Dplatforms= -Dc_link_args=-L$BREW/lib -Dcpp_link_args=-L$BREW/lib
           else
             meson setup build --prefix="$PWD/../out" $COMMON -Dplatforms= -Dlibunwind=disabled -Dvalgrind=disabled -Dlmsensors=disabled
           fi
@@ -200,7 +200,7 @@ jobs:
         run: |
           cd "mesa-$env:MESA_VERSION"
           meson setup build "--prefix=$PWD/../out" --buildtype=minsize -Db_ndebug=true -Db_vscrt=md --backend=ninja `
-            -Dgallium-drivers=llvmpipe -Dvulkan-drivers=swrast -Dplatforms=windows -Dglx=disabled -Degl=disabled -Dgles1=disabled -Dgles2=disabled `
+            -Dgallium-drivers=llvmpipe -Dvulkan-drivers=swrast -Dplatforms= -Dglx=disabled -Degl=disabled -Dgles1=disabled -Dgles2=disabled `
             -Dopengl=false -Dllvm=enabled -Dshared-llvm=disabled -Dshader-cache=enabled -Dgbm=disabled -Dvideo-codecs= -Dtools= `
             -Dzstd=disabled -Dspirv-tools=disabled -Dvulkan-layers= -Dmicrosoft-clc=disabled -Dgallium-d3d12-video=disabled
           if ($LASTEXITCODE) { exit 1 }
@@ -240,7 +240,6 @@ jobs:
           node spike/ci/write_icd.mjs pkg
           ls -la pkg
           echo "ANGLE_DIR=$PWD/pkg" >> "$GITHUB_ENV"
-          echo "VK_ICD_FILENAMES=$PWD/pkg/lvp_icd.json" >> "$GITHUB_ENV"
           echo "CACHE_DIR=$RUNNER_TEMP/shader-cache" >> "$GITHUB_ENV"
           echo "MESA_SHADER_CACHE_DIR=$RUNNER_TEMP/shader-cache" >> "$GITHUB_ENV"
       - name: Addon (Unix)

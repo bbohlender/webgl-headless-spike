@@ -271,12 +271,20 @@ static napi_value w_load(napi_env env, napi_callback_info info) {
   if (egl_lib) return NULL;
   char *dir = arg_string(env, argv[0]);
   char path[4096];
+  // Use only the bundled lavapipe driver and no layers, whatever Vulkan drivers or implicit
+  // layers (overlays, capture tools) the host has installed. Must happen before ANGLE loads.
+  snprintf(path, sizeof path, "%s/lvp_icd.json", dir);
 #ifdef _WIN32
-  SetDllDirectoryA(dir);  // ANGLE loads vulkan-1.dll; let it resolve from the package directory
+  _putenv_s("VK_DRIVER_FILES", path);
+  _putenv_s("VK_ICD_FILENAMES", path);
+  _putenv_s("VK_LOADER_LAYERS_DISABLE", "~all~");
   snprintf(path, sizeof path, "%s\\" LIB_GLES, dir);
   open_lib(path);  // preload so libEGL's lookup succeeds regardless of the DLL search path
   snprintf(path, sizeof path, "%s\\" LIB_EGL, dir);
 #else
+  setenv("VK_DRIVER_FILES", path, 1);
+  setenv("VK_ICD_FILENAMES", path, 1);
+  setenv("VK_LOADER_LAYERS_DISABLE", "~all~", 1);
   snprintf(path, sizeof path, "%s/" LIB_GLES, dir);
   open_lib(path);
   snprintf(path, sizeof path, "%s/" LIB_EGL, dir);
