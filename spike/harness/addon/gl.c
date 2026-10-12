@@ -181,6 +181,67 @@ static EGLSurface surface = EGL_NO_SURFACE;
 
 static void *load_gl(const char *name) { return (void *)p_eglGetProcAddress(name); }
 
+// ---- persistent blob cache (EGL_ANDROID_blob_cache) ----
+// ANGLE stores translated programs and Vulkan pipeline caches through these callbacks.
+// One file per entry, named by a 64-bit FNV-1a hash of the key; the file holds the key and value.
+
+static char blob_dir[4096];
+
+static uint64_t fnv1a(const void *data, size_t size) {
+  const unsigned char *p = data;
+  uint64_t h = 1469598103934665603ull;
+  for (size_t i = 0; i < size; i++) h = (h ^ p[i]) * 1099511628211ull;
+  return h;
+}
+
+static void blob_path(char *out, size_t outSize, const void *key, EGLsizeiANDROID keySize, const char *suffix) {
+  snprintf(out, outSize, "%s/%016llx%s", blob_dir, (unsigned long long)fnv1a(key, (size_t)keySize), suffix);
+}
+
+static void blob_set(const void *key, EGLsizeiANDROID keySize, const void *value, EGLsizeiANDROID valueSize) {
+  char path[4200], tmp[4200];
+  blob_path(path, sizeof path, key, keySize, "");
+  blob_path(tmp, sizeof tmp, key, keySize, ".tmp");
+  FILE *f = fopen(tmp, "wb");
+  if (!f) return;
+  uint64_t ks = (uint64_t)keySize;
+  bool ok = fwrite(&ks, sizeof ks, 1, f) == 1 && fwrite(key, 1, (size_t)keySize, f) == (size_t)keySize &&
+            fwrite(value, 1, (size_t)valueSize, f) == (size_t)valueSize;
+  fclose(f);
+  if (ok) {
+    remove(path);  // Windows rename does not replace
+    rename(tmp, path);
+  } else {
+    remove(tmp);
+  }
+}
+
+// Returns the value size; copies the value only when it fits (ANGLE first asks with valueSize 0).
+static EGLsizeiANDROID blob_get(const void *key, EGLsizeiANDROID keySize, void *value, EGLsizeiANDROID valueSize) {
+  char path[4200];
+  blob_path(path, sizeof path, key, keySize, "");
+  FILE *f = fopen(path, "rb");
+  if (!f) return 0;
+  EGLsizeiANDROID result = 0;
+  uint64_t ks = 0;
+  if (fread(&ks, sizeof ks, 1, f) == 1 && ks == (uint64_t)keySize) {
+    void *stored = malloc((size_t)ks);
+    if (fread(stored, 1, (size_t)ks, f) == (size_t)ks && memcmp(stored, key, (size_t)ks) == 0) {
+      fseek(f, 0, SEEK_END);
+      long total = ftell(f);
+      EGLsizeiANDROID size = (EGLsizeiANDROID)(total - (long)sizeof ks - (long)ks);
+      result = size;
+      if (value && valueSize >= size) {
+        fseek(f, (long)(sizeof ks + ks), SEEK_SET);
+        if (fread(value, 1, (size_t)size, f) != (size_t)size) result = 0;
+      }
+    }
+    free(stored);
+  }
+  fclose(f);
+  return result;
+}
+
 static napi_value throw_egl(napi_env env, const char *what) {
   char msg[160];
   snprintf(msg, sizeof msg, "%s failed (EGL error 0x%x)", what, p_eglGetError ? p_eglGetError() : 0);
@@ -307,6 +368,15 @@ static napi_value w_createContext(napi_env env, napi_callback_info info) {
     if (!p_eglInitialize(display, NULL, NULL)) {
       display = EGL_NO_DISPLAY;
       return throw_egl(env, "eglInitialize");
+    }
+    napi_value cacheDir;
+    if (get_prop(env, opts, "blobCacheDir", &cacheDir)) {
+      char *dir = arg_string(env, cacheDir);
+      snprintf(blob_dir, sizeof blob_dir, "%s", dir);
+      free(dir);
+      PFNEGLSETBLOBCACHEFUNCSANDROIDPROC setFuncs =
+          (PFNEGLSETBLOBCACHEFUNCSANDROIDPROC)p_eglGetProcAddress("eglSetBlobCacheFuncsANDROID");
+      if (setFuncs) setFuncs(display, blob_set, blob_get);
     }
   }
   p_eglBindAPI(EGL_OPENGL_ES_API);

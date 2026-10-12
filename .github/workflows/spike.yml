@@ -91,6 +91,19 @@ jobs:
         working-directory: angle
         shell: cmd
         run: gclient sync --no-history -j 8
+      - name: arm64 sysroot (Linux cross build)
+        if: matrix.id == 'linux-arm64'
+        working-directory: angle
+        run: python3 build/linux/sysroot_scripts/install-sysroot.py --arch=arm64
+      - name: Use the newest installed Windows SDK
+        if: runner.os == 'Windows'
+        working-directory: angle
+        run: |
+          # The pinned Chromium toolchain targets VS 2026 + SDK 10.0.28000; runners may have an older SDK.
+          sdk=$(ls "/c/Program Files (x86)/Windows Kits/10/Include" | grep '^10\.' | sort -V | tail -1)
+          echo "Using Windows SDK $sdk"
+          sed -i "s/^SDK_VERSION = '.*'/SDK_VERSION = '$sdk'/" build/vs_toolchain.py build/toolchain/win/setup_toolchain.py
+          grep -n "^SDK_VERSION" build/vs_toolchain.py build/toolchain/win/setup_toolchain.py
       - name: Patch (macOS Vulkan-only frameworks)
         if: runner.os == 'macOS'
         working-directory: angle

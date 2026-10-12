@@ -21,6 +21,8 @@ const [name, out] = positionals;
 const width = Number(values.width);
 const height = Number(values.height);
 const libDir = process.env.ANGLE_DIR;
+const blobCacheDir = process.env.ANGLE_BLOB_CACHE_DIR; // optional persistent ANGLE program/pipeline cache
+if (blobCacheDir) (await import("node:fs")).mkdirSync(blobCacheDir, { recursive: true });
 if (!name || !libDir) {
   console.error("usage: ANGLE_DIR=... node render.mjs <scene> [out.png]");
   process.exit(2);
@@ -32,7 +34,7 @@ const { buildScene, rendererOptions } = await import("./scenes.js");
 const tImport = performance.now();
 
 const opts = rendererOptions(name);
-const canvas = createCanvas(width, height, { libDir, backend: values.backend, alpha: opts.alpha, antialias: opts.antialias, preserveDrawingBuffer: opts.preserveDrawingBuffer, depth: true, stencil: false });
+const canvas = createCanvas(width, height, { libDir, blobCacheDir, backend: values.backend, alpha: opts.alpha, antialias: opts.antialias, preserveDrawingBuffer: opts.preserveDrawingBuffer, depth: true, stencil: false });
 const gl = canvas.getContext("webgl2");
 const renderer = new THREE.WebGLRenderer({ canvas, context: gl, antialias: opts.antialias, alpha: opts.alpha, preserveDrawingBuffer: opts.preserveDrawingBuffer });
 renderer.setPixelRatio(1);

@@ -166,3 +166,50 @@ def cache_reuse():
     setup_harness()
     sh("cat /proc/cpuinfo | grep -m1 'model name'; cp -r /vol/shared-cache /root/reused && cd /root/harness && for s in pbr soldier tokyo; do "
        f"{scene_env('vulkan', '/root/reused')} node render.mjs $s; done; du -sh /root/reused /vol/shared-cache")
+
+
+@app.function(image=image, cpu=16, memory=32768, timeout=6 * 3600, volumes={"/vol": vol})
+def conformance(backend: str = "lavapipe"):
+    """dEQP-GLES3 (Khronos OpenGL ES 3.0 conformance, the API WebGL2 is built on) through ANGLE on one driver,
+    rendering offscreen. backend: lavapipe (ANGLE Vulkan -> Mesa lavapipe) or swiftshader."""
+    env = f"VK_ICD_FILENAMES={LVP_ICD}" if backend == "lavapipe" else ""
+    angle = "vulkan" if backend == "lavapipe" else "swiftshader"
+    setup_test_tree()
+    log = f"/vol/results/deqp-{backend}.log"
+    sh("mkdir -p /vol/results")
+    sh(f"cd /work/out/Release && {env} ./angle_deqp_gles3_tests --use-angle={angle} --deqp-surface-type=pbuffer "
+       f"--bot-mode --max-processes=16 > {log} 2>&1 || true")
+    vol.commit()
+    sh(f"grep -E '^\\*RESULT' {log} | sort | uniq; grep -E 'FAILED  \\]|Crash' {log} | head -40 || true")
+
+
+def setup_test_tree() -> None:
+    """The test binaries locate case lists and data relative to an ANGLE source tree:
+    <root>/out/Release/<binary> and <root>/third_party/VK-GL-CTS/src/external/openglcts/data/..."""
+    sh("git clone -q --depth 1 https://chromium.googlesource.com/angle/angle /work && "
+       "rev=$(grep -A1 \"'vk_gl_cts_revision'\" /work/DEPS | grep -oE '[0-9a-f]{40}') && "
+       "mkdir -p /work/third_party/VK-GL-CTS/src && cd /work/third_party/VK-GL-CTS/src && git init -q && "
+       "git remote add origin https://chromium.googlesource.com/external/github.com/KhronosGroup/VK-GL-CTS && "
+       "git sparse-checkout set external/openglcts/data && git fetch -q --depth 1 origin $rev && git checkout -q FETCH_HEAD && "
+       "mkdir -p /work/out && cp -r /vol/angle /work/out/Release")
+
+
+@app.function(image=image, cpu=4, memory=8192, timeout=3600, volumes={"/vol": vol})
+def deqp_debug(filter: str = "dEQP-GLES3.functional.attribute_location.mixed.vec2", backend: str = "lavapipe"):
+    setup_test_tree()
+    env = f"VK_ICD_FILENAMES={LVP_ICD}" if backend == "lavapipe" else ""
+    angle = "vulkan" if backend == "lavapipe" else "swiftshader"
+    sh(f"cd /work/out/Release && {env} ./angle_deqp_gles3_tests --use-angle={angle} --gtest_filter='{filter}' --deqp-surface-type=pbuffer --verbose 2>&1 | tail -60 || true")
+
+
+@app.function(**SMALL)
+def frames(scene: str = "tokyo", count: int = 6):
+    """Steady-state frame time per backend: first frame (with warm cache) vs. later frames,
+    plus the call behind the GL error seen on the GLES comparison path."""
+    setup_harness()
+    for backend in ["vulkan", "gles", "swiftshader"]:
+        env = scene_env(backend, f"/root/cache-{backend}")
+        sh(f"cd /root/harness && {env} node render.mjs {scene} --backend {backend} > /dev/null && "
+           f"{env} node render.mjs {scene} --backend {backend} --frames {count}")
+    sh(f"cd /root/harness && {scene_env('gles', '/root/cache-gles')} node --import ./debug-gl.mjs render.mjs {scene} "
+       "--backend gles 2>&1 | grep -E 'GL error|coldMs' | head -20 || true")

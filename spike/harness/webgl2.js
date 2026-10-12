@@ -55,9 +55,9 @@ const EXTENSIONS = {
 };
 
 export class WebGL2RenderingContext {
-  constructor(canvas, { width, height, backend = "vulkan", libDir, alpha = true, depth = true, stencil = false, antialias = false, premultipliedAlpha = true, preserveDrawingBuffer = false } = {}) {
+  constructor(canvas, { width, height, backend = "vulkan", libDir, blobCacheDir, alpha = true, depth = true, stencil = false, antialias = false, premultipliedAlpha = true, preserveDrawingBuffer = false } = {}) {
     native.load(libDir);
-    native.createContext({ width, height, backend, alpha, depth, stencil, antialias });
+    native.createContext({ width, height, backend, blobCacheDir, alpha, depth, stencil, antialias });
     this.canvas = canvas;
     this._attrs = { alpha, depth, stencil, antialias, premultipliedAlpha, preserveDrawingBuffer, powerPreference: "default", failIfMajorPerformanceCaveat: false, desynchronized: false, xrCompatible: false };
     this._width = width;

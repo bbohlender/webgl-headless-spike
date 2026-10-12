@@ -3,7 +3,7 @@
 set -e
 cd "$(dirname "$0")"
 python3 gen.py
-NODE_INC="$(dirname "$(dirname "$(command -v node)")")/include/node"
+NODE_INC="$(node -p "require('path').resolve(process.execPath, '../../include/node')")"
 case "$(uname)" in
   Darwin) LINK="-bundle -undefined dynamic_lookup" ;;
   *) LINK="-shared -fPIC" ;;
