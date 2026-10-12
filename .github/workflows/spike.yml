@@ -161,23 +161,21 @@ jobs:
           echo "$PWD/glslang/bin" >> "$GITHUB_PATH"
       - uses: ilammy/msvc-dev-cmd@v1
         if: runner.os == 'Windows'
-      - name: Minimal LLVM (Windows)
+      - name: LLVM (Windows, official prebuilt)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          curl.exe -sfL "https://github.com/llvm/llvm-project/releases/download/llvmorg-$env:LLVM_VERSION/llvm-project-$env:LLVM_VERSION.src.tar.xz" -o llvm.tar.xz
-          $src = "llvm-project-$env:LLVM_VERSION.src"
-          tar -xJf llvm.tar.xz "$src/llvm" "$src/cmake" "$src/third-party" "$src/libc"
-          cmake -S "$src/llvm" -B llvm-build -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel "-DCMAKE_INSTALL_PREFIX=$PWD/llvm-min" `
-            -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL `
-            -DLLVM_TARGETS_TO_BUILD=X86 -DLLVM_BUILD_TOOLS=OFF -DLLVM_INCLUDE_TESTS=OFF -DLLVM_INCLUDE_EXAMPLES=OFF -DLLVM_INCLUDE_BENCHMARKS=OFF `
-            -DLLVM_INCLUDE_DOCS=OFF -DLLVM_ENABLE_ZLIB=OFF -DLLVM_ENABLE_ZSTD=OFF -DLLVM_ENABLE_LIBXML2=OFF -DLLVM_ENABLE_RTTI=ON
+          # Building LLVM with MSVC on a 4-core runner takes hours; LLVM's release ships static libraries.
+          $name = "clang+llvm-$env:LLVM_VERSION-x86_64-pc-windows-msvc"
+          curl.exe -sfL "https://github.com/llvm/llvm-project/releases/download/llvmorg-$env:LLVM_VERSION/$name.tar.xz" -o llvm.tar.xz
+          tar -xf llvm.tar.xz "$name/lib" "$name/include" "$name/bin/llvm-config.exe"
           if ($LASTEXITCODE) { exit 1 }
-          ninja -C llvm-build install-llvm-libraries install-llvm-headers install-cmake-exports llvm-config
-          if ($LASTEXITCODE) { exit 1 }
-          New-Item -ItemType Directory -Force llvm-min/bin | Out-Null
-          Copy-Item llvm-build/bin/llvm-config.exe llvm-min/bin/
-          Add-Content $env:GITHUB_PATH "$PWD/llvm-min/bin"
+          Rename-Item $name llvm
+          Add-Content $env:GITHUB_PATH "$PWD/llvm/bin"
+          $flags = & ./llvm/bin/llvm-config.exe --cxxflags
+          $crt = if ($flags -match '[-/]MT(d)?\b') { "mt" } else { "md" }
+          "llvm-config --cxxflags: $flags"
+          "MESA_VSCRT=$crt" | Add-Content $env:GITHUB_ENV
       - name: Fetch Mesa
         run: curl -sfL "https://archive.mesa3d.org/mesa-$MESA_VERSION.tar.xz" | tar xJ
       - name: Configure + build (Unix)
@@ -199,7 +197,7 @@ jobs:
         shell: pwsh
         run: |
           cd "mesa-$env:MESA_VERSION"
-          meson setup build "--prefix=$PWD/../out" --buildtype=minsize -Db_ndebug=true -Db_vscrt=md --backend=ninja `
+          meson setup build "--prefix=$PWD/../out" --buildtype=minsize -Db_ndebug=true "-Db_vscrt=$env:MESA_VSCRT" --backend=ninja `
             -Dgallium-drivers=llvmpipe -Dvulkan-drivers=swrast -Dplatforms= -Dglx=disabled -Degl=disabled -Dgles1=disabled -Dgles2=disabled `
             -Dopengl=false -Dllvm=enabled -Dshared-llvm=disabled -Dshader-cache=enabled -Dgbm=disabled -Dvideo-codecs= -Dtools= `
             -Dzstd=disabled -Dspirv-tools=disabled -Dvulkan-layers= -Dmicrosoft-clc=disabled -Dgallium-d3d12-video=disabled
