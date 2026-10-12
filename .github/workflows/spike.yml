@@ -125,7 +125,7 @@ jobs:
       - name: Collect
         run: |
           mkdir -p ../pkg && cd out/vk
-          for f in libEGL.dylib libGLESv2.dylib libEGL.so libGLESv2.so libEGL.dll libGLESv2.dll; do [ -f "$f" ] && cp "$f" ../../../pkg/ || true; done
+          for f in libEGL.dylib libGLESv2.dylib libEGL.so libGLESv2.so libEGL.dll libGLESv2.dll vulkan-1.dll; do [ -f "$f" ] && cp "$f" ../../../pkg/ || true; done
           ls -la ../../../pkg
         working-directory: angle
       - uses: actions/upload-artifact@v4

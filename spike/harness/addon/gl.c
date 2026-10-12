@@ -278,6 +278,10 @@ static napi_value w_load(napi_env env, napi_callback_info info) {
   _putenv_s("VK_DRIVER_FILES", path);
   _putenv_s("VK_ICD_FILENAMES", path);
   _putenv_s("VK_LOADER_LAYERS_DISABLE", "~all~");
+  // Load the bundled Vulkan loader by full path first, so ANGLE's later LoadLibrary("vulkan-1.dll")
+  // reuses it instead of a copy from System32 installed by the host's GPU driver.
+  snprintf(path, sizeof path, "%s\\vulkan-1.dll", dir);
+  open_lib(path);
   snprintf(path, sizeof path, "%s\\" LIB_GLES, dir);
   open_lib(path);  // preload so libEGL's lookup succeeds regardless of the DLL search path
   snprintf(path, sizeof path, "%s\\" LIB_EGL, dir);
