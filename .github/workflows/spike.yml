@@ -258,15 +258,12 @@ jobs:
       - name: Smoke (renderer string)
         working-directory: spike/harness
         run: node render.mjs pbr out/smoke.png
-      - name: Chrome references (SwiftShader)
-        working-directory: spike/harness
-        run: node reference.mjs swiftshader
       - name: Cold/warm benchmark (3+3 runs per scene)
         working-directory: spike/harness
         run: node bench-scenes.mjs 3 | tee out/bench.jsonl
       - name: Pixel comparison
         working-directory: spike/harness
-        run: for s in pbr soldier tokyo; do node compare.mjs out/$s-vulkan.png out/$s-chrome-swiftshader.png out/$s-diff.png; done | tee out/compare.jsonl
+        run: for s in pbr soldier tokyo; do node compare.mjs out/$s-vulkan.png reference/$s.png out/$s-diff.png; done | tee out/compare.jsonl
       - name: Stability (100 frames, 50 context cycles)
         working-directory: spike/harness
         run: TERMINATE=0 node --expose-gc stress.mjs soldier 100 50 | tee out/stress.jsonl
