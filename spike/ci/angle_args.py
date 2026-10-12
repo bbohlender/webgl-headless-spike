@@ -7,7 +7,7 @@ args = {
     "is_debug": "false", "is_component_build": "false", "dcheck_always_on": "false", "symbol_level": "0",
     "target_cpu": f'"{cpu}"', "angle_build_tests": "false", "angle_enable_vulkan": "true",
     "angle_use_vulkan_null_display": "true",
-    "angle_enable_swiftshader": "false", "angle_enable_gl": "false", "angle_enable_null": "false",
+    "angle_enable_swiftshader": "true", "angle_enable_gl": "false", "angle_enable_null": "false",
     "angle_enable_wgpu": "false", "angle_enable_vulkan_validation_layers": "false",
     "angle_has_frame_capture": "false", "angle_enable_perfetto": "false",
 }

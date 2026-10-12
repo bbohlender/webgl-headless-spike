@@ -263,13 +263,15 @@ static int prop_int(napi_env env, napi_value obj, const char *key, int fallback)
   return get_prop(env, obj, key, &v) ? (int)number_of(env, v) : fallback;
 }
 
-// load(libDir: string) -> loads libEGL from libDir (libEGL finds libGLESv2 next to itself).
+// load(libDir: string, icdFile: string) -> pins the Vulkan driver to <libDir>/<icdFile> (e.g. lvp_icd.json
+// or vk_swiftshader_icd.json) and loads ANGLE's libEGL from libDir (libEGL finds libGLESv2 next to itself).
 static napi_value w_load(napi_env env, napi_callback_info info) {
-  size_t argc = 1;
-  napi_value argv[1];
+  size_t argc = 2;
+  napi_value argv[2];
   napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
   if (egl_lib) return NULL;
   char *dir = arg_string(env, argv[0]);
+  char *icd = arg_string(env, argv[1]);
   char path[4096];
 #ifdef _WIN32
   // Native separators: the Vulkan loader resolves the manifest's relative library_path against the
@@ -277,10 +279,10 @@ static napi_value w_load(napi_env env, napi_callback_info info) {
   for (char *c = dir; *c; c++)
     if (*c == '/') *c = '\\';
 #endif
-  // Use only the bundled lavapipe driver and no layers, whatever Vulkan drivers or implicit
+  // Use only the bundled Vulkan driver and no layers, whatever Vulkan drivers or implicit
   // layers (overlays, capture tools) the host has installed. Must happen before ANGLE loads.
 #ifdef _WIN32
-  snprintf(path, sizeof path, "%s\\lvp_icd.json", dir);
+  snprintf(path, sizeof path, "%s\\%s", dir, icd);
   _putenv_s("VK_DRIVER_FILES", path);
   _putenv_s("VK_ICD_FILENAMES", path);
   _putenv_s("VK_LOADER_LAYERS_DISABLE", "~all~");
@@ -292,7 +294,7 @@ static napi_value w_load(napi_env env, napi_callback_info info) {
   open_lib(path);  // preload so libEGL's lookup succeeds regardless of the DLL search path
   snprintf(path, sizeof path, "%s\\" LIB_EGL, dir);
 #else
-  snprintf(path, sizeof path, "%s/lvp_icd.json", dir);
+  snprintf(path, sizeof path, "%s/%s", dir, icd);
   setenv("VK_DRIVER_FILES", path, 1);
   setenv("VK_ICD_FILENAMES", path, 1);
   setenv("VK_LOADER_LAYERS_DISABLE", "~all~", 1);
@@ -301,6 +303,7 @@ static napi_value w_load(napi_env env, napi_callback_info info) {
   snprintf(path, sizeof path, "%s/" LIB_EGL, dir);
 #endif
   free(dir);
+  free(icd);
   egl_lib = open_lib(path);
   if (!egl_lib) {
     char msg[4200];

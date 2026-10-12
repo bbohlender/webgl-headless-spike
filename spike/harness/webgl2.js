@@ -54,9 +54,13 @@ const EXTENSIONS = {
   WEBGL_lose_context: { gl: [], obj: { loseContext() {}, restoreContext() {} } },
 };
 
+// Bundled Vulkan drivers (CPU rasterizers) and their manifest files in the package directory.
+const DRIVERS = { lavapipe: "lvp_icd.json", swiftshader: "vk_swiftshader_icd.json" };
+
 export class WebGL2RenderingContext {
-  constructor(canvas, { width, height, backend = "vulkan", libDir, blobCacheDir, alpha = true, depth = true, stencil = false, antialias = false, premultipliedAlpha = true, preserveDrawingBuffer = false } = {}) {
-    native.load(libDir);
+  constructor(canvas, { width, height, driver = "lavapipe", backend = "vulkan", libDir, blobCacheDir, alpha = true, depth = true, stencil = false, antialias = false, premultipliedAlpha = true, preserveDrawingBuffer = false } = {}) {
+    if (!DRIVERS[driver]) throw new Error(`unknown driver ${driver}`);
+    native.load(libDir, DRIVERS[driver]);
     native.createContext({ width, height, backend, blobCacheDir, alpha, depth, stencil, antialias });
     this.canvas = canvas;
     this._attrs = { alpha, depth, stencil, antialias, premultipliedAlpha, preserveDrawingBuffer, powerPreference: "default", failIfMajorPerformanceCaveat: false, desynchronized: false, xrCompatible: false };

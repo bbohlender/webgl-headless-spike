@@ -14,7 +14,7 @@ const loadBytes = (p) => readFile(new URL(p, import.meta.url)).then((b) => b.buf
 
 async function session(renderFrames) {
   const opts = rendererOptions(name);
-  const canvas = createCanvas(width, height, { libDir: process.env.ANGLE_DIR, alpha: opts.alpha, depth: true });
+  const canvas = createCanvas(width, height, { libDir: process.env.ANGLE_DIR, driver: process.env.DRIVER ?? "lavapipe", alpha: opts.alpha, depth: true });
   const gl = canvas.getContext("webgl2");
   const renderer = new THREE.WebGLRenderer({ canvas, context: gl, antialias: false, alpha: opts.alpha });
   renderer.setSize(width, height, false);

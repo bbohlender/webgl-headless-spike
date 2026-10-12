@@ -5,6 +5,8 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 
 export const SCENES = ["pbr", "soldier", "tokyo"];
+// "empty" (clear only) is the memory/time baseline: Node + three.js + context, no scene content.
+export const BENCH_SCENES = ["empty", ...SCENES];
 
 async function loadGLB(loadBytes, path) {
   const bytes = await loadBytes(path);
@@ -20,6 +22,12 @@ function roomEnvironment(renderer, sigma) {
 
 // Returns { scene, camera } ready for renderer.render().
 export async function buildScene(name, renderer, loadBytes, aspect) {
+  if (name === "empty") {
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x000000);
+    return { scene, camera: new THREE.PerspectiveCamera(45, aspect, 0.1, 10) };
+  }
+
   if (name === "pbr") {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x202428);

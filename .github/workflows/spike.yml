@@ -114,18 +114,18 @@ jobs:
       - name: Build (Unix)
         if: runner.os != 'Windows'
         working-directory: angle
-        run: gn gen out/vk && autoninja -C out/vk libEGL libGLESv2
+        run: gn gen out/vk && autoninja -C out/vk libEGL libGLESv2 third_party/SwiftShader/src/Vulkan:swiftshader_libvulkan third_party/SwiftShader/src/Vulkan:icd_file
       - name: Build (Windows)
         if: runner.os == 'Windows'
         working-directory: angle
         shell: cmd
         run: |
           call gn gen out/vk || exit /b 1
-          call autoninja -C out/vk libEGL libGLESv2 || exit /b 1
+          call autoninja -C out/vk libEGL libGLESv2 third_party/SwiftShader/src/Vulkan:swiftshader_libvulkan third_party/SwiftShader/src/Vulkan:icd_file || exit /b 1
       - name: Collect
         run: |
           mkdir -p ../pkg && cd out/vk
-          for f in libEGL.dylib libGLESv2.dylib libEGL.so libGLESv2.so libEGL.dll libGLESv2.dll vulkan-1.dll; do [ -f "$f" ] && cp "$f" ../../../pkg/ || true; done
+          for f in libEGL.dylib libGLESv2.dylib libEGL.so libGLESv2.so libEGL.dll libGLESv2.dll vulkan-1.dll libvk_swiftshader.dylib libvk_swiftshader.so vk_swiftshader.dll vk_swiftshader_icd.json; do [ -f "$f" ] && cp "$f" ../../../pkg/ || true; done
           ls -la ../../../pkg
         working-directory: angle
       - uses: actions/upload-artifact@v4
@@ -148,10 +148,10 @@ jobs:
       - run: pip install meson ninja mako pyyaml packaging
       - name: Deps (macOS)
         if: runner.os == 'macOS'
-        run: brew install bison glslang llvm
+        run: brew install bison glslang
       - name: Deps (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update -q && sudo apt-get install -yq bison flex glslang-tools llvm-18-dev libpolly-18-dev libexpat1-dev zlib1g-dev libdrm-dev
+        run: sudo apt-get update -q && sudo apt-get install -yq bison flex glslang-tools libexpat1-dev zlib1g-dev libdrm-dev
       - name: Deps (Windows)
         if: runner.os == 'Windows'
         run: |
@@ -162,22 +162,30 @@ jobs:
           echo "GLSLANG_EXE=$(cygpath -m "$PWD/glslang/bin/glslang.exe")" >> "$GITHUB_ENV"
       - uses: ilammy/msvc-dev-cmd@v1
         if: runner.os == 'Windows'
-      # Minimal LLVM, same configuration as the macOS product build: one target, no zlib/zstd, size-optimized.
-      # (LLVM's prebuilt Windows libraries need static zlib + zstd that the release does not ship.)
+      # Minimal LLVM, identical on every platform: one CPU target, no zlib/zstd, size-optimized; cached.
       - uses: actions/cache@v4
-        if: runner.os == 'Windows'
         id: llvm-cache
         with:
           path: llvm
-          key: llvm-min-${{ env.LLVM_VERSION }}-win-x64-md-1
-      - name: LLVM source (Windows)
-        if: runner.os == 'Windows' && steps.llvm-cache.outputs.cache-hit != 'true'
+          key: llvm-min-${{ env.LLVM_VERSION }}-${{ matrix.id }}-2
+      - name: LLVM source
+        if: steps.llvm-cache.outputs.cache-hit != 'true'
         run: |
-          # GNU tar: Windows' System32 tar.exe (bsdtar 3.8.4) hangs on LLVM's .tar.xz archives.
+          # In Git Bash, tar is GNU tar; Windows' System32 tar.exe (bsdtar 3.8.4) hangs on LLVM's .tar.xz archives.
           curl -fsSL --max-time 600 "https://github.com/llvm/llvm-project/releases/download/llvmorg-$LLVM_VERSION/llvm-project-$LLVM_VERSION.src.tar.xz" -o llvm-src.tar.xz
           src="llvm-project-$LLVM_VERSION.src"
-          /usr/bin/tar -xJf llvm-src.tar.xz "$src/llvm" "$src/cmake" "$src/third-party" "$src/libc" || true  # 3 irrelevant symlinks fail
+          tar -xJf llvm-src.tar.xz "$src/llvm" "$src/cmake" "$src/third-party" "$src/libc" || true  # 3 irrelevant symlinks fail on Windows
           test -f "$src/llvm/CMakeLists.txt" && mv "$src" llvm-src
+      - name: LLVM build (Unix)
+        if: runner.os != 'Windows' && steps.llvm-cache.outputs.cache-hit != 'true'
+        run: |
+          target=$([ "${{ matrix.cpu }}" = arm64 ] && echo AArch64 || echo X86)
+          cmake -S llvm-src/llvm -B llvm-build -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX="$PWD/llvm" \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 -DLLVM_TARGETS_TO_BUILD=$target -DLLVM_BUILD_TOOLS=OFF -DLLVM_INCLUDE_TESTS=OFF \
+            -DLLVM_INCLUDE_EXAMPLES=OFF -DLLVM_INCLUDE_BENCHMARKS=OFF -DLLVM_INCLUDE_DOCS=OFF -DLLVM_ENABLE_ZLIB=OFF -DLLVM_ENABLE_ZSTD=OFF \
+            -DLLVM_ENABLE_LIBXML2=OFF -DLLVM_ENABLE_TERMINFO=OFF -DLLVM_ENABLE_LIBEDIT=OFF -DLLVM_ENABLE_RTTI=ON
+          ninja -C llvm-build install-llvm-libraries install-llvm-headers install-cmake-exports llvm-config
+          mkdir -p llvm/bin && cp llvm-build/bin/llvm-config llvm/bin/
       - name: LLVM build (Windows)
         if: runner.os == 'Windows' && steps.llvm-cache.outputs.cache-hit != 'true'
         shell: pwsh
@@ -191,24 +199,20 @@ jobs:
           if ($LASTEXITCODE) { exit 1 }
           New-Item -ItemType Directory -Force llvm/bin | Out-Null
           Copy-Item llvm-build/bin/llvm-config.exe llvm/bin/
-      - name: LLVM for Meson (Windows)
-        if: runner.os == 'Windows'
-        run: echo "LLVM_CONFIG_EXE=$(cygpath -m "$PWD/llvm/bin/llvm-config.exe")" >> "$GITHUB_ENV"
+      - name: LLVM for Meson
+        run: echo "LLVM_CONFIG_EXE=$( [ "$RUNNER_OS" = Windows ] && cygpath -m "$PWD/llvm/bin/llvm-config.exe" || echo "$PWD/llvm/bin/llvm-config")" >> "$GITHUB_ENV"
       - name: Fetch Mesa
         run: curl -fsSL --max-time 600 "https://archive.mesa3d.org/mesa-$MESA_VERSION.tar.xz" | /usr/bin/tar xJ
       - name: Configure + build (Unix)
         if: runner.os != 'Windows'
         run: |
-          COMMON="--buildtype=minsize -Db_ndebug=true -Dstrip=true -Dgallium-drivers=llvmpipe -Dvulkan-drivers=swrast -Dglx=disabled -Degl=disabled -Dgles1=disabled -Dgles2=disabled -Dopengl=false -Dllvm=enabled -Dshared-llvm=disabled -Dshader-cache=enabled -Dgbm=disabled -Dvideo-codecs= -Dtools= -Dzstd=disabled -Dspirv-tools=disabled -Dvulkan-layers= -Dxmlconfig=disabled"
           cd "mesa-$MESA_VERSION"
-          if [ "$RUNNER_OS" = macOS ]; then
-            BREW=$(brew --prefix)
-            export PATH="$BREW/opt/bison/bin:$PATH" MACOSX_DEPLOYMENT_TARGET=12.0
-            printf "[binaries]\nllvm-config = '$BREW/opt/llvm/bin/llvm-config'\n" > llvm.ini
-            meson setup build --native-file llvm.ini --prefix="$PWD/../out" $COMMON -Dplatforms= -Dc_link_args=-L$BREW/lib -Dcpp_link_args=-L$BREW/lib
-          else
-            meson setup build --prefix="$PWD/../out" $COMMON -Dplatforms= -Dlibunwind=disabled -Dvalgrind=disabled -Dlmsensors=disabled
-          fi
+          printf "[binaries]\nllvm-config = '$LLVM_CONFIG_EXE'\n" > tools.ini
+          [ "$RUNNER_OS" = macOS ] && export PATH="$(brew --prefix)/opt/bison/bin:$PATH" MACOSX_DEPLOYMENT_TARGET=12.0
+          meson setup build --native-file tools.ini --prefix="$PWD/../out" --buildtype=minsize -Db_ndebug=true -Dstrip=true \
+            -Dgallium-drivers=llvmpipe -Dvulkan-drivers=swrast -Dplatforms= -Dglx=disabled -Degl=disabled -Dgles1=disabled -Dgles2=disabled \
+            -Dopengl=false -Dllvm=enabled -Dshared-llvm=disabled -Dshader-cache=enabled -Dgbm=disabled -Dvideo-codecs= -Dtools= \
+            -Dzstd=disabled -Dspirv-tools=disabled -Dvulkan-layers= -Dxmlconfig=disabled -Dlibunwind=disabled -Dvalgrind=disabled -Dlmsensors=disabled
           ninja -C build install
       - name: Configure + build (Windows)
         if: runner.os == 'Windows'
@@ -247,7 +251,7 @@ jobs:
       run:
         shell: bash
     env:
-      LP_NUM_THREADS: "2"
+      DRIVERS: lavapipe,swiftshader  # both bundled drivers, same job and runner; each uses all runner cores
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -280,19 +284,22 @@ jobs:
         working-directory: spike/harness
         env:
           VK_LOADER_DEBUG: error,warn,driver
-        run: cat ../../pkg/lvp_icd.json && node render.mjs pbr out/smoke.png
+        run: cat ../../pkg/*icd.json && node render.mjs pbr out/smoke-lvp.png --driver lavapipe && node render.mjs pbr out/smoke-sws.png --driver swiftshader
       - name: Cold/warm benchmark (3+3 runs per scene)
         working-directory: spike/harness
         run: node bench-scenes.mjs 3 | tee out/bench.jsonl
       - name: Pixel comparison
         working-directory: spike/harness
-        run: for s in pbr soldier tokyo; do node compare.mjs out/$s-vulkan.png reference/$s.png out/$s-diff.png; done | tee out/compare.jsonl
+        run: for d in lavapipe swiftshader; do for s in pbr soldier tokyo; do node compare.mjs out/$s-$d.png reference/$s.png out/$s-$d-diff.png; done; done | tee out/compare.jsonl
       - name: Stability (100 frames, 50 context cycles)
         working-directory: spike/harness
-        run: TERMINATE=0 node --expose-gc stress.mjs soldier 100 50 | tee out/stress.jsonl
-      - name: Package size
+        run: for d in lavapipe swiftshader; do DRIVER=$d TERMINATE=0 node --expose-gc stress.mjs soldier 100 50 | sed "s/^{/{\"driver\":\"$d\",/"; done | tee out/stress.jsonl
+      - name: Package size (ANGLE + one driver)
+        working-directory: pkg
         run: |
-          echo "{\"unpackedMB\": $(du -sk pkg | cut -f1 | awk '{printf "%.1f", $1/1024}'), \"tgzMB\": $(tar czf - -C pkg . | wc -c | awk '{printf "%.1f", $1/1048576}')}" | tee spike/harness/out/size.json
+          common=$(ls libEGL.* libGLESv2.* vulkan-1.dll 2>/dev/null)
+          size() { echo "\"$1\": {\"unpackedMB\": $(du -ck $2 | tail -1 | cut -f1 | awk '{printf "%.1f", $1/1024}'), \"tgzMB\": $(tar czf - $2 | wc -c | awk '{printf "%.1f", $1/1048576}')}"; }
+          echo "{ $(size lavapipe "$common $(ls *vulkan_lvp.* lvp_icd.json)"), $(size swiftshader "$common $(ls *vk_swiftshader.* vk_swiftshader_icd.json)") }" | tee ../spike/harness/out/size.json
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: "results-${{ matrix.id }}", path: spike/harness/out }

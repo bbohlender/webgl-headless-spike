@@ -1,9 +1,10 @@
 // Renders one scene headlessly to PNG and prints a JSON line with timings and peak memory.
 //   ANGLE_DIR=<dir with libEGL/libGLESv2> VK_ICD_FILENAMES=<lavapipe icd json> \
-//   node render.mjs <pbr|soldier|tokyo> [out.png] [--width 1280 --height 720 --frames 1 --backend vulkan]
+//   node render.mjs <empty|pbr|soldier|tokyo> [out.png] [--driver lavapipe|swiftshader --frames 1 --width 1280 --height 720]
 // "cold" = process start until the first frame's pixels are read back.
 const t0 = performance.now();
 import { readFile } from "node:fs/promises";
+import { availableParallelism } from "node:os";
 import { parseArgs } from "node:util";
 import sharp from "sharp";
 import { createCanvas, installGlobals, readCanvas } from "./env.js";
@@ -15,6 +16,7 @@ const { values, positionals } = parseArgs({
     height: { type: "string", default: "720" },
     frames: { type: "string", default: "1" },
     backend: { type: "string", default: "vulkan" },
+    driver: { type: "string", default: process.env.DRIVER ?? "lavapipe" },
   },
 });
 const [name, out] = positionals;
@@ -34,7 +36,7 @@ const { buildScene, rendererOptions } = await import("./scenes.js");
 const tImport = performance.now();
 
 const opts = rendererOptions(name);
-const canvas = createCanvas(width, height, { libDir, blobCacheDir, backend: values.backend, alpha: opts.alpha, antialias: opts.antialias, preserveDrawingBuffer: opts.preserveDrawingBuffer, depth: true, stencil: false });
+const canvas = createCanvas(width, height, { libDir, blobCacheDir, driver: values.driver, backend: values.backend, alpha: opts.alpha, antialias: opts.antialias, preserveDrawingBuffer: opts.preserveDrawingBuffer, depth: true, stencil: false });
 const gl = canvas.getContext("webgl2");
 const renderer = new THREE.WebGLRenderer({ canvas, context: gl, antialias: opts.antialias, alpha: opts.alpha, preserveDrawingBuffer: opts.preserveDrawingBuffer });
 renderer.setPixelRatio(1);
@@ -65,6 +67,8 @@ if (out) await sharp(Buffer.from(pixels.buffer), { raw: { width, height, channel
 const info = renderer.info;
 console.log(JSON.stringify({
   scene: name,
+  driver: values.driver,
+  cores: availableParallelism(),
   renderer: gl.getParameter(gl.UNMASKED_RENDERER_WEBGL),
   coldMs: Math.round(tFirst - t0),
   importMs: Math.round(tImport - t0),
