@@ -4,6 +4,10 @@ name: spike
 # angle + mesa build the two native pieces per platform; test runs the identical test set.
 on:
   workflow_dispatch:
+    inputs:
+      platforms:
+        description: Comma-separated platform ids
+        default: mac-arm64,mac-x64,win-x64,linux-x64,linux-arm64
   push:
     branches: [main]
 
@@ -16,17 +20,35 @@ env:
   GCLIENT_SUPPRESS_GIT_VERSION_WARNING: "1"
 
 jobs:
+  # Platform table; build_os builds ANGLE, os builds Mesa and runs the tests (linux-arm64 ANGLE is cross-compiled).
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - id: plan
+        env:
+          WANTED: ${{ inputs.platforms || 'mac-arm64,mac-x64,win-x64,linux-x64,linux-arm64' }}
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os
+          all = [
+              {"id": "mac-arm64", "build_os": "macos-15", "os": "macos-15", "cpu": "arm64"},
+              {"id": "mac-x64", "build_os": "macos-15-intel", "os": "macos-15-intel", "cpu": "x64"},
+              {"id": "win-x64", "build_os": "windows-2022", "os": "windows-2022", "cpu": "x64"},
+              {"id": "linux-x64", "build_os": "ubuntu-24.04", "os": "ubuntu-24.04", "cpu": "x64"},
+              {"id": "linux-arm64", "build_os": "ubuntu-24.04", "os": "ubuntu-24.04-arm", "cpu": "arm64"},
+          ]
+          wanted = os.environ["WANTED"].split(",")
+          print("matrix=" + json.dumps({"include": [p for p in all if p["id"] in wanted]}))
+          PY
+
   angle:
+    needs: plan
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - { id: mac-arm64, os: macos-15, cpu: arm64 }
-          - { id: mac-x64, os: macos-15-intel, cpu: x64 }
-          - { id: win-x64, os: windows-2022, cpu: x64 }
-          - { id: linux-x64, os: ubuntu-24.04, cpu: x64 }
-          - { id: linux-arm64, os: ubuntu-24.04, cpu: arm64 } # cross-compiled, tested on an arm64 runner
-    runs-on: ${{ matrix.os }}
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    runs-on: ${{ matrix.build_os }}
     timeout-minutes: 300
     defaults:
       run:
@@ -42,6 +64,18 @@ jobs:
         run: |
           git clone -q --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git "$RUNNER_TEMP/depot_tools"
           echo "$RUNNER_TEMP/depot_tools" >> "$GITHUB_PATH"
+          git config --global core.longpaths true
+      - name: Bootstrap depot_tools (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        env:
+          DEPOT_TOOLS_UPDATE: "1"
+        run: |
+          cd /d %RUNNER_TEMP%\depot_tools
+          call update_depot_tools.bat
+      - name: Bootstrap depot_tools (Unix)
+        if: runner.os != 'Windows'
+        run: cd "$RUNNER_TEMP/depot_tools" && ./ensure_bootstrap
       - name: Fetch ANGLE
         run: |
           mkdir angle && cd angle
@@ -85,15 +119,10 @@ jobs:
         with: { name: "angle-${{ matrix.id }}", path: pkg }
 
   mesa:
+    needs: plan
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - { id: mac-arm64, os: macos-15 }
-          - { id: mac-x64, os: macos-15-intel }
-          - { id: win-x64, os: windows-2022 }
-          - { id: linux-x64, os: ubuntu-24.04 }
-          - { id: linux-arm64, os: ubuntu-24.04-arm }
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 300
     defaults:
@@ -114,7 +143,7 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           choco install -y winflexbison3
-          curl -sfLo glslang.zip https://github.com/KhronosGroup/glslang/releases/download/main-tot/glslang-master-windows-Release.zip
+          curl -sfLo glslang.zip https://github.com/KhronosGroup/glslang/releases/download/main-tot/glslang-main-windows-x86_64-release.zip
           7z x -oglslang glslang.zip > /dev/null
           echo "$PWD/glslang/bin" >> "$GITHUB_PATH"
       - uses: ilammy/msvc-dev-cmd@v1
@@ -173,17 +202,11 @@ jobs:
         with: { name: "mesa-${{ matrix.id }}", path: pkg }
 
   test:
-    needs: [angle, mesa]
-    if: always()
+    needs: [plan, angle, mesa]
+    if: always() && needs.plan.result == 'success'
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - { id: mac-arm64, os: macos-15 }
-          - { id: mac-x64, os: macos-15-intel }
-          - { id: win-x64, os: windows-2022 }
-          - { id: linux-x64, os: ubuntu-24.04 }
-          - { id: linux-arm64, os: ubuntu-24.04-arm }
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
     defaults:

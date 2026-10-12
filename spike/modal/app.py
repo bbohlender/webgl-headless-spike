@@ -33,7 +33,9 @@ image = (
     .run_commands("git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git /opt/depot_tools")
     .env({"PATH": "/usr/local/bin:/opt/depot_tools:/usr/bin:/bin", "DEPOT_TOOLS_UPDATE": "0"})
     .run_commands("cd /opt/depot_tools && ./ensure_bootstrap")
+    .run_commands("curl -fsSL https://nodejs.org/dist/v22.17.1/node-v22.17.1-linux-x64.tar.xz | tar xJ -C /opt && ln -s /opt/node-v22.17.1-linux-x64/bin/* /usr/local/bin/")
     .add_local_dir(SPIKE / "bench", "/spike/bench")
+    .add_local_dir(SPIKE / "harness", "/spike/harness", ignore=["node_modules", "out", "*.node", "gl_gen.c", "build", "*.plain.glb"])
 )
 
 
@@ -121,3 +123,46 @@ def bench(count: int = 40, runs: int = 3):
         for run in range(runs):
             sh(f"echo '[{name}] warm #{run}'; "
                f"MESA_SHADER_CACHE_DIR=/root/cache /usr/bin/time -f 'peak %M KB' env {cmd} {count}")
+
+
+LIBDIRS = "/vol/mesa/lib/x86_64-linux-gnu:/vol/mesa/lib"
+
+
+def setup_harness() -> None:
+    sh("cp -r /spike/harness /root/harness && cd /root/harness && npm ci --silent && node prep-models.mjs && mkdir -p out && addon/build.sh")
+
+
+def scene_env(backend: str, cache: str) -> str:
+    base = f"ANGLE_DIR=/vol/angle MESA_SHADER_CACHE_DIR={cache} CACHE_DIR={cache} BACKEND={backend} LP_NUM_THREADS=2"
+    if backend == "vulkan":
+        return f"{base} VK_ICD_FILENAMES={LVP_ICD}"
+    if backend == "gles":  # ANGLE's GL backend dlopens libEGL.so.1 -> Mesa's surfaceless llvmpipe
+        return f"{base} LD_LIBRARY_PATH={LIBDIRS}"
+    return base
+
+
+@app.function(**SMALL)
+def scenes(runs: int = 3, backends: str = "vulkan,gles,swiftshader"):
+    """Same 2-vCPU container, same harness and scenes, one backend after another."""
+    setup_harness()
+    for backend in backends.split(","):
+        sh(f"cd /root/harness && {scene_env(backend, '/root/cache-' + backend)} node bench-scenes.mjs {runs} | tee -a out/scenes.jsonl")
+    sh("mkdir -p /vol/results && cp /root/harness/out/*.png /root/harness/out/scenes.jsonl /vol/results/")
+    vol.commit()
+
+
+@app.function(**SMALL)
+def cache_fill():
+    """Fills a lavapipe shader cache for all scenes and stores it in the volume."""
+    setup_harness()
+    sh("rm -rf /vol/shared-cache && cd /root/harness && for s in pbr soldier tokyo; do "
+       f"{scene_env('vulkan', '/vol/shared-cache')} node render.mjs $s; done; cat /proc/cpuinfo | grep -m1 'model name'")
+    vol.commit()
+
+
+@app.function(**SMALL)
+def cache_reuse():
+    """Runs in a fresh container: copies the stored cache and renders warm (if keys match) or cold."""
+    setup_harness()
+    sh("cat /proc/cpuinfo | grep -m1 'model name'; cp -r /vol/shared-cache /root/reused && cd /root/harness && for s in pbr soldier tokyo; do "
+       f"{scene_env('vulkan', '/root/reused')} node render.mjs $s; done; du -sh /root/reused /vol/shared-cache")
