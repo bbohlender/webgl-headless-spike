@@ -1,7 +1,8 @@
 // Turns dist/<platform>-<arch> (ANGLE, lavapipe and the addon) into the npm package
-// @drawcall/webgl-<platform>-<arch>: writes the Vulkan driver manifest and package.json.
+// @drawcall/webgl-<platform>-<arch>: writes the Vulkan driver manifest and package.json and adds the
+// license notices the bundled binaries require.
 //   node deps/package.js dist/<platform>-<arch>
-import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
 const dir = process.argv[2];
@@ -16,10 +17,11 @@ const manifest = {
   name: `@drawcall/webgl-${platform}-${arch}`,
   version: root.version,
   description: `Native part of @drawcall/webgl for ${platform}-${arch}: the addon, ANGLE and Mesa lavapipe`,
-  license: root.license,
+  license: "MIT AND BSD-3-Clause AND Zlib AND Apache-2.0 AND Apache-2.0 WITH LLVM-exception",
   repository: root.repository,
   os: [platform],
   cpu: [arch],
 };
 writeFileSync(join(dir, "package.json"), `${JSON.stringify(manifest, null, 2)}\n`);
+for (const file of ["LICENSE", "THIRD_PARTY_NOTICES"]) copyFileSync(new URL(`../${file}`, import.meta.url), join(dir, file));
 console.log(`${manifest.name}: ${readdirSync(dir).join(" ")}`);
