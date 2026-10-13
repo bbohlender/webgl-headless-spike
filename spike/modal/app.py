@@ -222,30 +222,38 @@ def harness_cmd(cmd: str):
     sh(f"cd /root/harness && {cmd} || true")
 
 
-def weak_vm(label: str) -> None:
-    """Both drivers on a CPU-limited container, using the CI-built Linux x64 package in /vol/ci-pkg."""
+def weak_vm(label: str, cpus: str) -> None:
+    """Both drivers on a CPU-limited container, using the CI-built Linux x64 package in /vol/ci-pkg.
+    The cgroup quota limits CPU time, but the drivers size their thread pools from the visible CPU count
+    (17+ host CPUs here); `taskset -c <cpus>` makes them see what a real VM of that size would show."""
     setup_harness()
-    sh("echo cpu.max=$(cat /sys/fs/cgroup/cpu.max 2>/dev/null) nproc=$(nproc) node=$(node -p 'require(\"os\").availableParallelism()'); "
-       "free -m | head -2")
+    pin = f"taskset -c {cpus}"
+    sh(f"echo cpu.max=$(cat /sys/fs/cgroup/cpu.max 2>/dev/null) nproc=$(nproc) "
+       f"pinned=$({pin} node -p 'require(\"os\").availableParallelism()'); free -m | head -2")
     sh("cp -r /vol/ci-pkg /root/pkg && chmod +x /root/pkg/*.so* || true")
     out = f"/vol/results/weak-{label}"
-    sh(f"cd /root/harness && ANGLE_DIR=/root/pkg CACHE_DIR=/root/cache DRIVERS=lavapipe,swiftshader node bench-scenes.mjs 3 | tee {out}.jsonl")
+    sh(f"cd /root/harness && ANGLE_DIR=/root/pkg CACHE_DIR=/root/cache DRIVERS=lavapipe,swiftshader {pin} node bench-scenes.mjs 3 | tee {out}.jsonl")
     for driver in ["lavapipe", "swiftshader"]:
-        sh(f"cd /root/harness && DRIVER={driver} ANGLE_DIR=/root/pkg TERMINATE=0 node --expose-gc stress.mjs soldier 30 10 "
+        sh(f"cd /root/harness && DRIVER={driver} ANGLE_DIR=/root/pkg TERMINATE=0 {pin} node --expose-gc stress.mjs soldier 30 10 "
            f"| sed 's/^{{/{{\"driver\":\"{driver}\",/' | tee -a {out}-stress.jsonl")
     vol.commit()
 
 
 @app.function(image=image, cpu=0.5, memory=2048, timeout=3 * 3600, volumes={"/vol": vol})
 def weak_half_core():
-    weak_vm("0.5core")
+    weak_vm("0.5core", "0")
 
 
 @app.function(image=image, cpu=1.0, memory=2048, timeout=3 * 3600, volumes={"/vol": vol})
 def weak_one_core():
-    weak_vm("1core")
+    weak_vm("1core", "0")
 
 
 @app.function(image=image, cpu=2.0, memory=4096, timeout=3 * 3600, volumes={"/vol": vol})
 def weak_two_cores():
-    weak_vm("2core")
+    weak_vm("2core", "0,1")
+
+
+@app.function(image=image, cpu=4.0, memory=8192, timeout=3 * 3600, volumes={"/vol": vol})
+def weak_four_cores():
+    weak_vm("4core", "0-3")
