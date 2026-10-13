@@ -16,9 +16,7 @@ case "$(uname -s)" in
   Darwin) platform=(-DCMAKE_OSX_DEPLOYMENT_TARGET=12.0) ;;
   MINGW*|MSYS*) platform=(-DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded) ;;
 esac
-# MinSizeRel: lavapipe 20% smaller (gzipped) than Release; frames render equally fast, first-use shader
-# compiles are up to ~10% slower (measured on darwin-arm64).
-cmake -S "$src/llvm" -B llvm-build -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX="$prefix" \
+cmake -S "$src/llvm" -B llvm-build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$prefix" \
   -DLLVM_TARGETS_TO_BUILD="$target" -DLLVM_BUILD_TOOLS=OFF -DLLVM_INCLUDE_TESTS=OFF -DLLVM_INCLUDE_EXAMPLES=OFF \
   -DLLVM_INCLUDE_BENCHMARKS=OFF -DLLVM_INCLUDE_DOCS=OFF -DLLVM_ENABLE_ZLIB=OFF -DLLVM_ENABLE_ZSTD=OFF \
   -DLLVM_ENABLE_LIBXML2=OFF -DLLVM_ENABLE_TERMINFO=OFF -DLLVM_ENABLE_LIBEDIT=OFF -DLLVM_ENABLE_RTTI=ON "${platform[@]}"
