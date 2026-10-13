@@ -24,7 +24,7 @@ renderer.render(scene, camera);
 const pixels = canvas.readPixels(); // Uint8Array, RGBA8, width * height * 4 bytes, top row first
 ```
 
-- `installGlobals()` defines the browser globals three.js needs: `createImageBitmap` and `ImageBitmap` (image decoding for loaders such as `GLTFLoader`), `self`, `requestAnimationFrame` and `cancelAnimationFrame`. Call it once before loading assets.
+- `installGlobals()` defines the browser globals three.js needs: `createImageBitmap` and `ImageBitmap` (image decoding for loaders such as `GLTFLoader`), `ProgressEvent` (used by `FileLoader` when loading URLs), `self`, `requestAnimationFrame` and `cancelAnimationFrame`. Call it once before loading assets.
 - `createCanvas(width, height)` returns a canvas for `new THREE.WebGLRenderer({ canvas })`. `renderer.setSize(width, height, false)` or assigning `canvas.width` / `canvas.height` resizes it.
 - `canvas.readPixels(out?)` returns the rendered frame. Pass the same `Uint8Array` every frame to avoid allocating one per frame.
 
