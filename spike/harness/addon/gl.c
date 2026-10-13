@@ -1,5 +1,6 @@
 // Node-API addon: loads ANGLE at runtime, creates a headless WebGL2-compatible EGL context,
 // and exposes the OpenGL ES 3.0 entry points (generated in gl_gen.c) plus a few hand-written ones.
+#define _POSIX_C_SOURCE 200809L  // setenv under -std=c11
 #include "gl.h"
 
 #include <stdio.h>
