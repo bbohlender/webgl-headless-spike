@@ -1,0 +1,49 @@
+name: profile
+
+# Where does SwiftShader spend steady-frame time on a GitHub VM? perf stat + perf record, both drivers.
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: spike run whose angle-linux-x64 / mesa-linux-x64 artifacts to use
+        required: true
+
+jobs:
+  profile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - uses: actions/download-artifact@v4
+        with: { name: angle-linux-x64, path: pkg, run-id: "${{ inputs.run_id }}", github-token: "${{ github.token }}" }
+      - uses: actions/download-artifact@v4
+        with: { name: mesa-linux-x64, path: pkg, run-id: "${{ inputs.run_id }}", github-token: "${{ github.token }}" }
+      - name: Setup
+        run: |
+          chmod +x pkg/*.so*; node spike/ci/write_icd.mjs pkg
+          spike/harness/addon/build.sh
+          cd spike/harness && npm ci && node prep-models.mjs
+          sudo apt-get update -q && sudo apt-get install -yq linux-tools-common linux-tools-$(uname -r) || sudo apt-get install -yq linux-tools-azure
+          sudo sysctl -w kernel.perf_event_paranoid=-1 kernel.kptr_restrict=0
+          lscpu | grep -E "Model name|Hypervisor|Flags" | cut -c1-400
+      - name: perf stat (steady frames)
+        working-directory: spike/harness
+        run: |
+          for d in lavapipe swiftshader; do
+            echo "== $d"
+            DRIVER=$d ANGLE_DIR=$GITHUB_WORKSPACE/pkg perf stat -e task-clock,page-faults,minor-faults,major-faults,context-switches,cpu-migrations \
+              node debug/frames.mjs tokyo 8 2>&1 | tail -15
+          done
+      - name: perf record (SwiftShader)
+        working-directory: spike/harness
+        run: |
+          DRIVER=swiftshader ANGLE_DIR=$GITHUB_WORKSPACE/pkg perf record -F 499 -g -o sws.data node debug/frames.mjs tokyo 8
+          perf report -i sws.data --stdio --no-children --sort dso,symbol 2>/dev/null | grep -vE "^$|^#" | head -60
+          echo "=== by DSO"; perf report -i sws.data --stdio --no-children --sort dso 2>/dev/null | grep -vE "^$|^#" | head -15
+      - name: perf record (lavapipe)
+        working-directory: spike/harness
+        run: |
+          DRIVER=lavapipe ANGLE_DIR=$GITHUB_WORKSPACE/pkg perf record -F 499 -g -o lvp.data node debug/frames.mjs tokyo 8
+          perf report -i lvp.data --stdio --no-children --sort dso 2>/dev/null | grep -vE "^$|^#" | head -15
