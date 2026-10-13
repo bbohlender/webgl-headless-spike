@@ -160,8 +160,6 @@ jobs:
         run: |
           echo /opt/python/cp312-cp312/bin >> "$GITHUB_PATH"
           dnf install -y -q bison flex
-          # Mesa links libdrm whenever its headers are found; lavapipe does not need it.
-          dnf remove -y -q libdrm-devel
       - if: runner.os != 'Linux'
         uses: actions/setup-python@v5
         with: { python-version: "3.12" }
