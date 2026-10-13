@@ -1,7 +1,8 @@
 node_modules/
-spike/harness/out/
-spike/harness/addon/webgl.node
-spike/harness/addon/gl_gen.c
-spike/harness/addon/build/
-spike/harness/models/*.plain.glb
-.DS_Store
+native/gl_gen.c
+native/webgl.node
+native/node.lib
+src/constants.js
+test/models/*.plain.glb
+test/out/
+dist/
