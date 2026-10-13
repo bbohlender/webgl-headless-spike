@@ -36,6 +36,19 @@ jobs:
             DRIVER=$d ANGLE_DIR=$GITHUB_WORKSPACE/pkg perf stat -e task-clock,page-faults,minor-faults,major-faults,context-switches,cpu-migrations \
               node debug/frames.mjs tokyo 8 2>&1 | tail -15
           done
+      - name: TLB hypothesis (transparent huge pages madvise vs always)
+        working-directory: spike/harness
+        run: |
+          cat /sys/kernel/mm/transparent_hugepage/enabled
+          for mode in madvise always; do
+            echo $mode | sudo tee /sys/kernel/mm/transparent_hugepage/enabled > /dev/null
+            for d in swiftshader lavapipe; do
+              echo "== THP=$mode $d"
+              DRIVER=$d ANGLE_DIR=$GITHUB_WORKSPACE/pkg perf stat -e cycles,instructions,dTLB-load-misses,iTLB-load-misses \
+                node debug/frames.mjs tokyo 6 2>&1 | grep -E "frame ms|cycles|instructions|TLB|not supported"
+            done
+          done
+          echo madvise | sudo tee /sys/kernel/mm/transparent_hugepage/enabled > /dev/null
       - name: perf record (SwiftShader)
         working-directory: spike/harness
         run: |
