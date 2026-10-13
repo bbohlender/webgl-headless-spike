@@ -241,6 +241,7 @@ jobs:
     env:
       DRAWCALL_WEBGL_NATIVE: ${{ github.workspace }}/dist/${{ matrix.id }}
     steps:
+      - run: microdnf install -y gzip tar # for actions/checkout; the package itself needs neither
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with: { name: "package-${{ matrix.id }}", path: "dist/${{ matrix.id }}" }
