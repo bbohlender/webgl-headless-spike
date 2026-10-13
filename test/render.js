@@ -34,23 +34,20 @@ export async function openScene(name) {
 }
 
 // Renders `frames` frames and returns the last frame's pixels with timings in milliseconds: setup
-// (context + scene), first (first frame incl. shader compiles) and steady (mean of later frames).
+// (context + scene) and frames (each frame's render and readback; the first includes shader compiles).
 export async function renderScene(name, { frames = 1 } = {}) {
   const start = performance.now();
   const view = await openScene(name);
   try {
-    const setup = performance.now();
-    let pixels = view.render();
-    const first = performance.now();
-    for (let i = 1; i < frames; i++) pixels = view.render();
-    const end = performance.now();
-    return {
-      pixels,
-      glError: view.renderer.getContext().getError(),
-      setupMs: setup - start,
-      firstMs: first - setup,
-      steadyMs: frames > 1 ? (end - first) / (frames - 1) : undefined,
-    };
+    const setupMs = performance.now() - start;
+    const frameMs = [];
+    let pixels;
+    for (let i = 0; i < frames; i++) {
+      const frameStart = performance.now();
+      pixels = view.render();
+      frameMs.push(performance.now() - frameStart);
+    }
+    return { pixels, glError: view.renderer.getContext().getError(), setupMs, frameMs };
   } finally {
     view.close();
   }
