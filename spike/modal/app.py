@@ -220,3 +220,32 @@ def harness_cmd(cmd: str):
     """Runs a shell command inside the prepared harness (/root/harness) on a 2-vCPU container."""
     setup_harness()
     sh(f"cd /root/harness && {cmd} || true")
+
+
+def weak_vm(label: str) -> None:
+    """Both drivers on a CPU-limited container, using the CI-built Linux x64 package in /vol/ci-pkg."""
+    setup_harness()
+    sh("echo cpu.max=$(cat /sys/fs/cgroup/cpu.max 2>/dev/null) nproc=$(nproc) node=$(node -p 'require(\"os\").availableParallelism()'); "
+       "free -m | head -2")
+    sh("cp -r /vol/ci-pkg /root/pkg && chmod +x /root/pkg/*.so* || true")
+    out = f"/vol/results/weak-{label}"
+    sh(f"cd /root/harness && ANGLE_DIR=/root/pkg CACHE_DIR=/root/cache DRIVERS=lavapipe,swiftshader node bench-scenes.mjs 3 | tee {out}.jsonl")
+    for driver in ["lavapipe", "swiftshader"]:
+        sh(f"cd /root/harness && DRIVER={driver} ANGLE_DIR=/root/pkg TERMINATE=0 node --expose-gc stress.mjs soldier 30 10 "
+           f"| sed 's/^{{/{{\"driver\":\"{driver}\",/' | tee -a {out}-stress.jsonl")
+    vol.commit()
+
+
+@app.function(image=image, cpu=0.5, memory=2048, timeout=3 * 3600, volumes={"/vol": vol})
+def weak_half_core():
+    weak_vm("0.5core")
+
+
+@app.function(image=image, cpu=1.0, memory=2048, timeout=3 * 3600, volumes={"/vol": vol})
+def weak_one_core():
+    weak_vm("1core")
+
+
+@app.function(image=image, cpu=2.0, memory=4096, timeout=3 * 3600, volumes={"/vol": vol})
+def weak_two_cores():
+    weak_vm("2core")

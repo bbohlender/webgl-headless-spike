@@ -297,9 +297,10 @@ jobs:
       - name: Package size (ANGLE + one driver)
         working-directory: pkg
         run: |
-          common=$(ls libEGL.* libGLESv2.* vulkan-1.dll 2>/dev/null)
+          shopt -s nullglob
+          common=$(echo libEGL.* libGLESv2.* vulkan-1.*)
           size() { echo "\"$1\": {\"unpackedMB\": $(du -ck $2 | tail -1 | cut -f1 | awk '{printf "%.1f", $1/1024}'), \"tgzMB\": $(tar czf - $2 | wc -c | awk '{printf "%.1f", $1/1048576}')}"; }
-          echo "{ $(size lavapipe "$common $(ls *vulkan_lvp.* lvp_icd.json)"), $(size swiftshader "$common $(ls *vk_swiftshader.* vk_swiftshader_icd.json)") }" | tee ../spike/harness/out/size.json
+          echo "{ $(size lavapipe "$common $(echo *vulkan_lvp.* lvp_icd.json)"), $(size swiftshader "$common $(echo *vk_swiftshader.* vk_swiftshader_icd.json)") }" | tee ../spike/harness/out/size.json
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: "results-${{ matrix.id }}", path: spike/harness/out }
