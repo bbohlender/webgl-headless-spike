@@ -2,7 +2,7 @@ name: ci
 
 # Per platform: angle builds ANGLE, driver builds lavapipe and the addon, test assembles the platform
 # package (dist/<platform>-<arch>), checks its native dependencies and runs the tests and the
-# benchmark, and compat reruns the tests on the oldest supported Linux (Debian 11, glibc 2.31).
+# benchmark, and compat reruns the tests on the oldest supported Linux (RHEL 8, glibc 2.28).
 on:
   push:
     branches: [main]
@@ -160,6 +160,8 @@ jobs:
         run: |
           echo /opt/python/cp312-cp312/bin >> "$GITHUB_PATH"
           dnf install -y -q bison flex
+          # Mesa links libdrm whenever its headers are found; lavapipe does not need it.
+          dnf remove -y -q libdrm-devel
       - if: runner.os != 'Linux'
         uses: actions/setup-python@v5
         with: { python-version: "3.12" }
@@ -235,7 +237,9 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.linux) }}
     runs-on: ${{ matrix.os }}
-    container: node:20-bullseye-slim
+    container:
+      image: registry.access.redhat.com/ubi8/nodejs-22-minimal
+      options: --user root
     env:
       DRAWCALL_WEBGL_NATIVE: ${{ github.workspace }}/dist/${{ matrix.id }}
     steps:

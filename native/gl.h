@@ -7,7 +7,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-// JS -> C argument conversion and C -> JS results, shared by gl.c and the generated gl_gen.c.
+// convert.c: JS -> C arguments and C -> JS results, used by gl.c and the generated gl_gen.c.
+napi_valuetype type_of(napi_env env, napi_value v);
 void *arg_pointer(napi_env env, napi_value v);
 char *arg_string(napi_env env, napi_value v);
 uint32_t arg_uint(napi_env env, napi_value v);

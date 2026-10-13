@@ -56,7 +56,7 @@ The first render of a scene compiles its shaders, which dominates the first fram
 
 - The full WebGL2 API with ANGLE's WebGL validation, plus common extensions: `EXT_color_buffer_float`, `EXT_color_buffer_half_float`, `EXT_float_blend`, `OES_texture_float_linear`, `EXT_texture_filter_anisotropic`, `EXT_texture_norm16`, S3TC, BPTC and RGTC compressed textures, and `OES_draw_buffers_indexed`.
 - Texture sources: `ArrayBufferView`s and `ImageBitmap`s from `createImageBitmap(blob)` (PNG, JPEG, WebP, AVIF, ...).
-- Platforms: macOS 13+ (arm64, x64), Windows x64, Linux x64 and arm64 with glibc 2.31+ (Debian 11, Ubuntu 20.04 and later).
+- Platforms: macOS 13+ (arm64, x64), Windows x64, Linux x64 and arm64 with glibc 2.28+ (Debian 10, Ubuntu 18.10, RHEL 8 and later).
 
 Not available: 2D canvas (`CanvasTexture`, text drawn with a 2D context), `HTMLImageElement`/`HTMLVideoElement` texture sources, Web Workers (decoders that require workers, such as `DRACOLoader` and `KTX2Loader`, need a worker shim), and WebGL 1 contexts.
 

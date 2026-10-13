@@ -2,7 +2,6 @@ node_modules/
 native/gl_gen.c
 native/webgl.node
 native/node.lib
-src/constants.js
 test/models/*.plain.glb
 test/out/
 dist/

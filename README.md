@@ -17,4 +17,4 @@ renderer.render(scene, camera);
 const pixels = canvas.readPixels(); // RGBA, top row first
 ```
 
-Supports macOS (arm64, x64), Windows (x64) and Linux (x64, arm64, glibc 2.31+). See [skills/webgl](skills/webgl/SKILL.md) for details.
+Supports macOS (arm64, x64), Windows (x64) and Linux (x64, arm64, glibc 2.28+). See [skills/webgl](skills/webgl/SKILL.md) for details.

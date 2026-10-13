@@ -19,7 +19,7 @@ case "$(uname -s)" in
           platform=(-Dplatforms= -Dstrip=true -Dshader-cache=enabled) ;;
   *) platform=(-Dplatforms= -Dstrip=true -Dshader-cache=enabled) ;;
 esac
-meson setup build --native-file tools.ini --prefix="$prefix" --buildtype=release -Db_ndebug=true --force-fallback-for=zlib \
+meson setup build --native-file tools.ini --prefix="$prefix" --buildtype=release -Db_ndebug=true --force-fallback-for=zlib -Dzlib:default_library=static \
   -Dgallium-drivers=llvmpipe -Dvulkan-drivers=swrast -Dglx=disabled -Degl=disabled -Dgles1=disabled -Dgles2=disabled \
   -Dopengl=false -Dllvm=enabled -Dshared-llvm=disabled -Dgbm=disabled -Dvideo-codecs= -Dtools= -Dzstd=disabled \
   -Dspirv-tools=disabled -Dvulkan-layers= -Dxmlconfig=disabled -Dlibunwind=disabled -Dvalgrind=disabled \

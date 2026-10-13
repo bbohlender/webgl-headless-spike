@@ -1,6 +1,6 @@
 #!/bin/bash
 # Fails if a native file in <dir> needs anything beyond the operating system itself: on Linux only
-# core system libraries and glibc symbols up to 2.31, on macOS only /usr/lib and system frameworks,
+# core system libraries and glibc symbols up to 2.28, on macOS only /usr/lib and system frameworks,
 # on Windows no Visual C++ runtime DLLs (the C runtime is linked statically).
 set -euo pipefail
 dir="$1"
@@ -14,7 +14,7 @@ case "$(uname -s)" in
       done
       glibc=$(objdump -T "$file" | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1)
       echo "$(basename "$file"): newest symbol $glibc"
-      [ "$(printf '%s\nGLIBC_2.31\n' "$glibc" | sort -V | tail -1)" = GLIBC_2.31 ] || fail "$(basename "$file") needs $glibc (> 2.31)"
+      [ "$(printf '%s\nGLIBC_2.28\n' "$glibc" | sort -V | tail -1)" = GLIBC_2.28 ] || fail "$(basename "$file") needs $glibc (> 2.28)"
     done ;;
   Darwin)
     for file in "$dir"/*.dylib "$dir"/webgl.node; do
@@ -26,7 +26,7 @@ case "$(uname -s)" in
     done ;;
   MINGW*|MSYS*)
     for file in "$dir"/*.dll "$dir"/webgl.node; do
-      deps=$(dumpbin -nologo -dependents "$file" | grep -i '\.dll' | tr -d ' \r')
+      deps=$(dumpbin -nologo -dependents "$file" | grep -iE '^\s+\S+\.dll\s*$' | tr -d ' \r')
       echo "$(basename "$file"): $(echo $deps)"
       if echo "$deps" | grep -qiE '^(vcruntime|msvcp|vccorlib)'; then fail "$(basename "$file") needs the Visual C++ runtime"; fi
     done ;;
