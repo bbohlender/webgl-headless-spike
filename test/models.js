@@ -2,6 +2,7 @@
 // load identical geometry without a Draco decoder.
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 
 const MODELS = new URL("models/", import.meta.url);
 
@@ -12,11 +13,11 @@ export async function decodeModels() {
   const { ALL_EXTENSIONS, KHRDracoMeshCompression } = await import("@gltf-transform/extensions");
   const { default: draco3d } = await import("draco3dgltf");
   const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ "draco3d.decoder": await draco3d.createDecoderModule() });
-  const document = await io.read(new URL("LittlestTokyo.glb", MODELS).pathname);
+  const document = await io.read(fileURLToPath(new URL("LittlestTokyo.glb", MODELS)));
   for (const extension of document.getRoot().listExtensionsUsed()) {
     if (extension.extensionName === KHRDracoMeshCompression.EXTENSION_NAME) extension.dispose();
   }
-  await io.write(plain.pathname, document);
+  await io.write(fileURLToPath(plain), document);
 }
 
 // Reads a file relative to test/ (scenes.js refers to models as "models/<name>.glb").

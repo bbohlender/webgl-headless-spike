@@ -5,6 +5,7 @@
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { extname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 import sharp from "sharp";
 import { decodeModels } from "./models.js";
@@ -58,7 +59,7 @@ try {
     await page.waitForFunction(() => window.ready);
     const pixels = Buffer.from(await page.evaluate(([n, w, h]) => window.renderScene(n, w, h), [name, WIDTH, HEIGHT]));
     // readPixels returns the bottom row first.
-    await sharp(pixels, { raw: { width: WIDTH, height: HEIGHT, channels: 4 } }).flip().png().toFile(new URL(`reference/${name}.png`, import.meta.url).pathname);
+    await sharp(pixels, { raw: { width: WIDTH, height: HEIGHT, channels: 4 } }).flip().png().toFile(fileURLToPath(new URL(`reference/${name}.png`, import.meta.url)));
     console.log(`wrote reference/${name}.png`);
     await page.close();
   }
