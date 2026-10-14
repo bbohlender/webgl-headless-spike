@@ -4,14 +4,12 @@
 # (Linux) libdrm built from Mesa's bundled sources and linked in, static C runtime on Windows, no
 # driver config files (xmlconfig) read from the host.
 set -euo pipefail
-here=$(cd "$(dirname "$0")" && pwd)
-source "$here/../env.sh"
+source "$(dirname "$0")/env.sh"
 prefix=$(native_path "$1")
 toolchain=$(native_path "$2")
 version=26.2.4
 curl -fsSL --max-time 600 "https://archive.mesa3d.org/mesa-$version.tar.xz" | tar -xJ
 cd "mesa-$version"
-python3 "$here/patch.py"
 exe=$([ -f "$toolchain/bin/glslang.exe" ] && echo .exe || true)
 printf "[binaries]\nllvm-config = '%s'\nglslangValidator = '%s'\n" "$toolchain/bin/llvm-config$exe" "$toolchain/bin/glslang$exe" > tools.ini
 if [ -n "${ChocolateyInstall:-}" ]; then  # Windows: winflexbison from Chocolatey, which Meson may not find on PATH

@@ -181,7 +181,7 @@ jobs:
         if: steps.toolchain.outputs.cache-hit != 'true'
         run: deps/glslang.sh "$PWD/toolchain" && deps/llvm.sh "$PWD/toolchain" ${{ matrix.cpu }}
       - name: lavapipe
-        run: deps/mesa/build.sh "$PWD/lavapipe" "$PWD/toolchain"
+        run: deps/mesa.sh "$PWD/lavapipe" "$PWD/toolchain"
       - name: Addon + collect
         run: |
           mkdir -p driver
