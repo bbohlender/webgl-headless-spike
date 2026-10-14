@@ -159,7 +159,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           echo /opt/python/cp312-cp312/bin >> "$GITHUB_PATH"
-          dnf install -y -q bison flex
+          dnf install -y -q bison flex clang
       - if: runner.os != 'Linux'
         uses: actions/setup-python@v5
         with: { python-version: "3.12" }
