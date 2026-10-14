@@ -3,10 +3,12 @@ name: ci
 # Per platform: angle builds ANGLE, driver builds lavapipe and the addon, test assembles the platform
 # package (dist/<platform>-<arch>), checks its native dependencies and runs the tests and the
 # benchmark, and compat reruns the tests on the oldest supported Linux (RHEL 8, glibc 2.28).
+# publish-package.yml calls this workflow on release tags and publishes the tested packages.
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_call:
   workflow_dispatch:
     inputs:
       platforms:
