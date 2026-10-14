@@ -15,7 +15,7 @@ case "$(uname -s)" in
       -shared -ldl -o "$out/webgl.node" ;;
   MINGW*|MSYS*)
     . ../deps/env.sh
-    [ -f node.lib ] || curl -fsSL --max-time 300 -o node.lib https://nodejs.org/dist/v22.17.1/win-x64/node.lib
+    [ -f node.lib ] || download https://nodejs.org/dist/v22.17.1/win-x64/node.lib node.lib
     cl -nologo -O2 -MT -W3 -WX -DNODE_GYP_MODULE_NAME=webgl -Iinclude gl.c convert.c gl_gen.c -LD -Fe:"$(cygpath -m "$out")/webgl.node" node.lib
     rm -f ./*.obj "$out/webgl.lib" "$out/webgl.exp" ;;
   *) echo "unsupported platform $(uname -s)" >&2; exit 1 ;;

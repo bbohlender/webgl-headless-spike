@@ -8,7 +8,8 @@ source "$(dirname "$0")/env.sh"
 prefix=$(native_path "$1")
 toolchain=$(native_path "$2")
 version=26.2.4
-curl -fsSL --max-time 600 "https://archive.mesa3d.org/mesa-$version.tar.xz" | tar -xJ
+download "https://archive.mesa3d.org/mesa-$version.tar.xz" mesa.tar.xz
+tar -xJf mesa.tar.xz
 cd "mesa-$version"
 exe=$([ -f "$toolchain/bin/glslang.exe" ] && echo .exe || true)
 printf "[binaries]\nllvm-config = '%s'\nglslangValidator = '%s'\n" "$toolchain/bin/llvm-config$exe" "$toolchain/bin/glslang$exe" > tools.ini

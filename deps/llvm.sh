@@ -7,7 +7,7 @@ prefix=$(native_path "$1")
 target=$([ "$2" = arm64 ] && echo AArch64 || echo X86)
 version=23.1.3
 src="llvm-project-$version.src"
-curl -fsSL --max-time 900 -o llvm.tar.xz "https://github.com/llvm/llvm-project/releases/download/llvmorg-$version/$src.tar.xz"
+download "https://github.com/llvm/llvm-project/releases/download/llvmorg-$version/$src.tar.xz" llvm.tar.xz
 # GNU tar, also in Git Bash on Windows: Windows' own tar.exe (bsdtar 3.8.4) hangs on this archive.
 # Three symlinks that LLVM's libraries do not use cannot be created on Windows, so tar exits non-zero there.
 tar -xJf llvm.tar.xz "$src/llvm" "$src/cmake" "$src/third-party" "$src/libc" || test -f "$src/llvm/CMakeLists.txt"

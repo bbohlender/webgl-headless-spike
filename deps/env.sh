@@ -10,3 +10,12 @@ case "$(uname -s)" in
     native_path() { echo "$1"; } ;;
   *) native_path() { echo "$1"; } ;;
 esac
+
+# Downloads <url> to <file>, retrying: source hosts sometimes drop connections.
+download() {
+  for attempt in 1 2 3 4 5; do
+    curl -fsSL --max-time 900 -o "$2" "$1" && return
+    sleep 15
+  done
+  return 1
+}
